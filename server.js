@@ -15,20 +15,20 @@ app.get('/', (req, res) => res.redirect('/play'));
 
 let players = [];
 let inviteCode = Math.random().toString(36).substring(2, 6).toUpperCase();
+let isAssigned = false;
 
 function shuffle(array) {
   return array.sort(() => Math.random() - 0.5);
 }
 
 io.on('connection', (socket) => {
-  socket.emit('init_state', { players, inviteCode });
+  socket.emit('init_state', { players, inviteCode, isAssigned });
 
   socket.on('join_game', ({ nickname, code }) => {
     if (code !== inviteCode) {
       return socket.emit('join_error', '초대코드가 일치하지 않습니다.');
     }
     
-    // 닉네임 중복 체크
     const isDuplicate = players.some(p => p.nickname.trim() === nickname.trim());
     if (isDuplicate) {
       return socket.emit('join_error', '이미 사용 중인 닉네임입니다.');
@@ -37,7 +37,7 @@ io.on('connection', (socket) => {
     const player = { id: socket.id, nickname: nickname.trim(), role: null };
     players.push(player);
     socket.emit('join_success');
-    io.emit('update_players', players);
+    io.emit('update_players', { players, isAssigned });
   });
 
   socket.on('assign_roles', (roleConfig) => {
@@ -53,17 +53,21 @@ io.on('connection', (socket) => {
       io.to(p.id).emit('your_role', { role: p.role });
     });
 
-    io.emit('roles_assigned', players);
+    isAssigned = true;
+    io.emit('roles_assigned', { players, isAssigned });
+    io.emit('update_players', { players, isAssigned });
   });
 
   socket.on('reset_roles', () => {
     players.forEach(p => p.role = null);
-    io.emit('roles_reset', players);
+    isAssigned = false;
+    io.emit('roles_reset', { players, isAssigned });
+    io.emit('update_players', { players, isAssigned });
   });
 
   socket.on('disconnect', () => {
     players = players.filter(p => p.id !== socket.id);
-    io.emit('update_players', players);
+    io.emit('update_players', { players, isAssigned });
   });
 });
 
