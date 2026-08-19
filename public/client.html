@@ -10,7 +10,6 @@
 <body class="bg-zinc-950 text-white min-h-screen flex items-center justify-center p-4">
   <div class="w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-2xl space-y-5 text-center">
     
-    <!-- 입장 카드 -->
     <div id="login-screen" class="space-y-4">
       <h2 class="text-xl font-bold">마피아 게임 입장</h2>
       
@@ -28,7 +27,6 @@
       <button onclick="joinGame()" class="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 font-bold rounded-xl shadow-lg transition">대기실 입장</button>
     </div>
 
-    <!-- 역할 확인 카드 -->
     <div id="game-screen" class="hidden space-y-5 py-4">
       <div class="text-xs border-b border-zinc-800 pb-3 flex justify-between items-center">
         <span class="text-zinc-400">플레이어</span>
@@ -50,7 +48,6 @@
   <script>
     const socket = io();
 
-    // URL에서 초대코드 자동 입력
     window.onload = () => {
       const urlParams = new URLSearchParams(window.location.search);
       const codeParam = urlParams.get('code');
@@ -69,9 +66,7 @@
       socket.emit('join_game', { nickname, code });
     }
 
-    socket.on('join_error', (msg) => {
-      alert(msg);
-    });
+    socket.on('join_error', (msg) => { alert(msg); });
 
     socket.on('join_success', () => {
       document.getElementById('login-screen').classList.add('hidden');
