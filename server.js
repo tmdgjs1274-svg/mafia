@@ -34,7 +34,7 @@ io.on('connection', (socket) => {
       return socket.emit('join_error', '이미 사용 중인 닉네임입니다.');
     }
 
-    const player = { id: socket.id, nickname: nickname.trim(), role: null };
+    const player = { id: socket.id, nickname: nickname.trim(), role: null, isAlive: true };
     players.push(player);
     socket.emit('join_success');
     io.emit('update_players', { players, isAssigned });
@@ -50,7 +50,8 @@ io.on('connection', (socket) => {
 
     players.forEach((p, idx) => {
       p.role = rolePool[idx] || 'citizen';
-      io.to(p.id).emit('your_role', { role: p.role });
+      p.isAlive = true;
+      io.to(p.id).emit('your_role', { role: p.role, isAlive: p.isAlive });
     });
 
     isAssigned = true;
@@ -58,8 +59,20 @@ io.on('connection', (socket) => {
     io.emit('update_players', { players, isAssigned });
   });
 
+  socket.on('kill_player', (playerId) => {
+    const p = players.find(item => item.id === playerId);
+    if (p) {
+      p.isAlive = false;
+      io.to(p.id).emit('player_died');
+      io.emit('update_players', { players, isAssigned });
+    }
+  });
+
   socket.on('reset_roles', () => {
-    players.forEach(p => p.role = null);
+    players.forEach(p => {
+      p.role = null;
+      p.isAlive = true;
+    });
     isAssigned = false;
     io.emit('roles_reset', { players, isAssigned });
     io.emit('update_players', { players, isAssigned });
