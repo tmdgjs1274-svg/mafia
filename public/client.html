@@ -10,27 +10,38 @@
 <body class="bg-zinc-950 text-white min-h-screen flex items-center justify-center p-4">
   <div class="w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-2xl space-y-5 text-center">
     
-    <!-- 1. 닉네임 입력 화면 -->
     <div id="login-screen" class="space-y-4">
-      <h2 class="text-xl font-bold">플레이어 닉네임 입력</h2>
-      <input type="text" id="nickname-input" placeholder="닉네임 입력" class="w-full p-3 bg-zinc-950 border border-zinc-800 rounded-xl text-center text-sm">
-      <button onclick="joinGame()" class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 font-bold rounded-xl">대기실 입장</button>
+      <h2 class="text-xl font-bold">마피아 게임 참가</h2>
+      
+      <div class="space-y-2 text-left">
+        <div>
+          <label class="text-xs text-zinc-400 mb-1 block">초대 코드</label>
+          <input type="text" id="code-input" placeholder="초대코드 4자리" uppercase class="w-full p-3 bg-zinc-950 border border-zinc-800 rounded-xl text-center text-sm uppercase tracking-widest font-bold">
+        </div>
+        <div>
+          <label class="text-xs text-zinc-400 mb-1 block">닉네임</label>
+          <input type="text" id="nickname-input" placeholder="사용할 닉네임" class="w-full p-3 bg-zinc-950 border border-zinc-800 rounded-xl text-center text-sm">
+        </div>
+      </div>
+
+      <button onclick="joinGame()" class="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 font-bold rounded-xl shadow-lg transition">대기실 입장</button>
     </div>
 
-    <!-- 2. 게임 참가 메인 화면 -->
     <div id="game-screen" class="hidden space-y-4">
-      <div class="flex justify-between items-center text-xs text-zinc-400 border-b border-zinc-800 pb-3">
+      <div class="flex justify-between items-center text-xs border-b border-zinc-800 pb-3">
         <span id="my-name" class="font-bold text-white"></span>
         <span id="game-phase" class="px-2 py-0.5 bg-zinc-800 rounded text-amber-400 font-bold">대기 중</span>
       </div>
 
       <div id="role-box" class="p-4 bg-zinc-950 border border-zinc-800 rounded-xl hidden">
-        <div class="text-xs text-zinc-500">당신의 직업</div>
-        <div id="my-role" class="text-2xl font-black text-red-500 mt-1"></div>
+        <div class="text-xs text-zinc-500">당신의 비밀 역할</div>
+        <div id="my-role" class="text-2xl font-black mt-1"></div>
       </div>
 
+      <div id="result-box" class="p-3 bg-zinc-800/50 rounded-xl text-xs text-amber-300 hidden font-semibold"></div>
+
       <div id="action-section" class="space-y-2 text-left">
-        <h3 id="action-title" class="text-xs font-semibold text-zinc-400">지목할 대상 선택</h3>
+        <h3 id="action-title" class="text-xs font-semibold text-zinc-400">대상 선택</h3>
         <div id="target-list" class="space-y-1.5 max-h-48 overflow-y-auto"></div>
       </div>
 
@@ -43,34 +54,68 @@
     let myRole = null;
     let playersData = [];
 
+    // URL Param 주소에서 초대코드 자동 추출
+    window.onload = () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const codeParam = urlParams.get('code');
+      if (codeParam) {
+        document.getElementById('code-input').value = codeParam.toUpperCase();
+      }
+    };
+
     function joinGame() {
-      const name = document.getElementById('nickname-input').value.trim();
-      if (!name) return alert('닉네임을 입력하세요.');
-      socket.emit('join_game', name);
+      const code = document.getElementById('code-input').value.trim().toUpperCase();
+      const nickname = document.getElementById('nickname-input').value.trim();
+
+      if (!code) return alert('초대 코드를 입력하세요.');
+      if (!nickname) return alert('닉네임을 입력하세요.');
+
+      socket.emit('join_game', { nickname, code });
+    }
+
+    socket.on('join_error', (msg) => {
+      alert(msg);
+    });
+
+    socket.on('join_success', () => {
       document.getElementById('login-screen').classList.add('hidden');
       document.getElementById('game-screen').classList.remove('hidden');
-      document.getElementById('my-name').innerText = name;
-    }
+      document.getElementById('my-name').innerText = document.getElementById('nickname-input').value;
+    });
 
     socket.on('your_role', ({ role }) => {
       myRole = role;
       document.getElementById('role-box').classList.remove('hidden');
-      const roleNames = { mafia: '마피아 🕵️‍♂️', police: '경찰 👮‍♂️', doctor: '의사 🩺', citizen: '시민 🧑' };
+      const roleNames = { 
+        mafia: '🔴 마피아', 
+        spy: '🟠 스파이', 
+        police: '🔵 경찰', 
+        doctor: '🟢 의사', 
+        medium: '🟣 영매', 
+        citizen: '⚪ 시민' 
+      };
       document.getElementById('my-role').innerText = roleNames[role] || role;
+    });
+
+    socket.on('police_result', ({ targetName, isMafia }) => {
+      const res = document.getElementById('result-box');
+      res.classList.remove('hidden');
+      res.innerText = `[조사 결과] ${targetName} 님은 ${isMafia ? '마피아가 맞습니다!' : '마피아가 아닙니다.'}`;
+    });
+
+    socket.on('spy_result', ({ targetName, role }) => {
+      const res = document.getElementById('result-box');
+      res.classList.remove('hidden');
+      res.innerText = `[접선/조사 결과] ${targetName} 님의 직업은 '${role}' 입니다.`;
     });
 
     socket.on('phase_change', ({ phase }) => {
       document.getElementById('game-phase').innerText = phase.toUpperCase();
+      document.getElementById('result-box').classList.add('hidden');
       renderActionList(phase);
     });
 
-    socket.on('update_players', (players) => {
-      playersData = players;
-    });
-
-    socket.on('action_confirmed', (targetId) => {
-      document.getElementById('status-msg').innerText = '선택이 완료되었습니다. 결과를 기다리는 중...';
-    });
+    socket.on('update_players', (players) => { playersData = players; });
 
     function renderActionList(phase) {
       const list = document.getElementById('target-list');
@@ -78,17 +123,19 @@
       list.innerHTML = '';
 
       if (phase === 'night') {
-        if (myRole === 'mafia') title.innerText = '🌙 처단할 시민을 선택하세요:';
-        else if (myRole === 'doctor') title.innerText = '🌙 살릴 사람을 선택하세요:';
-        else title.innerText = '🌙 밤이 되었습니다. 조용히 대기하세요.';
+        if (myRole === 'mafia') title.innerText = '🌙 처단할 대상을 선택하세요:';
+        else if (myRole === 'doctor') title.innerText = '🌙 살릴 대상을 선택하세요:';
+        else if (myRole === 'police') title.innerText = '🌙 마피아 여부를 조사할 대상을 선택하세요:';
+        else if (myRole === 'spy') title.innerText = '🌙 직업을 조사할 대상을 선택하세요:';
+        else title.innerText = '🌙 밤이 되었습니다. 대기해 주세요.';
 
-        if (['mafia', 'doctor'].includes(myRole)) {
+        if (['mafia', 'doctor', 'police', 'spy'].includes(myRole)) {
           playersData.filter(p => p.isAlive).forEach(p => {
             list.innerHTML += `<button onclick="sendNightAction('${p.id}')" class="w-full p-2 bg-zinc-950 border border-zinc-800 rounded text-xs text-left hover:bg-zinc-800">${p.nickname}</button>`;
           });
         }
       } else if (phase === 'day') {
-        title.innerText = '☀️ 의심스러운 사람에게 투표하세요:';
+        title.innerText = '☀️ 의심되는 플레이어에게 투표하세요:';
         playersData.filter(p => p.isAlive).forEach(p => {
           list.innerHTML += `<button onclick="sendVote('${p.id}')" class="w-full p-2 bg-zinc-950 border border-zinc-800 rounded text-xs text-left hover:bg-zinc-800">${p.nickname}</button>`;
         });
