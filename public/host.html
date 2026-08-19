@@ -7,100 +7,108 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="/socket.io/socket.io.js"></script>
 </head>
-<body class="bg-zinc-950 text-white min-h-screen p-4 flex flex-col items-center justify-center">
-  <div class="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-2xl space-y-5">
+<body class="bg-zinc-950 text-white min-h-screen p-4 flex items-center justify-center">
+  <!-- 가로형 레이아웃 컨테이너 -->
+  <div class="w-full max-w-4xl bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-2xl grid grid-cols-1 md:grid-cols-2 gap-6">
     
-    <div class="flex justify-between items-center border-b border-zinc-800 pb-4">
+    <!-- LEFT PANEL: 제목, 코드, 참여자 목록 -->
+    <div class="flex flex-col justify-between space-y-4">
       <div>
         <span class="text-xs text-emerald-400 font-bold uppercase tracking-wider">Host Dashboard</span>
-        <h1 class="text-xl font-bold">역할 분배 대기실</h1>
+        <h1 class="text-2xl font-bold mt-0.5">역할 분배 대기실</h1>
+      </div>
+
+      <!-- 초대 코드 & QR 카드 -->
+      <div class="p-3.5 bg-zinc-950 border border-zinc-800 rounded-xl flex items-center justify-between">
+        <div>
+          <div class="text-[11px] text-zinc-500 font-semibold">참가 초대 코드</div>
+          <div id="invite-code" class="text-2xl font-black tracking-widest text-emerald-400">----</div>
+          <div class="text-[10px] text-zinc-400 mt-0.5">QR을 누르면 크게 확대됩니다</div>
+        </div>
+        <div onclick="openQrModal()" class="cursor-pointer bg-white p-1 rounded-lg hover:opacity-90 transition">
+          <img id="qr-thumb" src="" alt="QR Code" class="w-12 h-12">
+        </div>
+      </div>
+
+      <!-- 접속한 참가자 리스트 -->
+      <div class="flex-1 flex flex-col min-h-0">
+        <div class="flex justify-between text-sm mb-2">
+          <span class="text-zinc-400 font-medium">접속한 참가자</span>
+          <span class="text-zinc-400"><b id="player-count" class="text-emerald-400">0</b> 명</span>
+        </div>
+        <div id="player-list" class="space-y-1.5 overflow-y-auto pr-1 text-xs max-h-48 border border-zinc-800/80 rounded-xl p-2 bg-zinc-950/50"></div>
       </div>
     </div>
 
-    <!-- 초대 코드 & QR 카드 -->
-    <div class="p-3 bg-zinc-950 border border-zinc-800 rounded-xl flex items-center justify-between">
+    <!-- RIGHT PANEL: 역할 리스트 (노 스크롤) / 버튼 -->
+    <div class="flex flex-col justify-between space-y-3 pl-0 md:pl-2 border-t md:border-t-0 md:border-l border-zinc-800/80 pt-4 md:pt-0">
       <div>
-        <div class="text-[11px] text-zinc-500 font-semibold">참가 초대 코드</div>
-        <div id="invite-code" class="text-xl font-black tracking-widest text-emerald-400">----</div>
-        <div class="text-[10px] text-zinc-400 mt-0.5">QR을 누르면 크게 확대됩니다</div>
-      </div>
-      <div onclick="openQrModal()" class="cursor-pointer bg-white p-1 rounded-lg hover:opacity-90 transition">
-        <img id="qr-thumb" src="" alt="QR Code" class="w-12 h-12">
-      </div>
-    </div>
-
-    <div>
-      <div class="flex justify-between text-sm mb-2">
-        <span class="text-zinc-400">접속한 참가자</span>
-        <span class="text-zinc-400"><b id="player-count" class="text-emerald-400">0</b> 명</span>
-      </div>
-      <div id="player-list" class="space-y-1.5 max-h-36 overflow-y-auto pr-1 text-xs"></div>
-    </div>
-
-    <div class="space-y-2 border-t border-zinc-800 pt-4">
-      <div class="flex justify-between items-center mb-1">
-        <span class="text-xs text-zinc-400 font-semibold">역할 설정 (총 <span id="total-roles" class="text-white font-bold">9</span>개)</span>
-        <button onclick="apply9PlayerPreset()" class="text-[11px] text-blue-400 hover:text-blue-300 underline transition">9인 추천 세팅</button>
-      </div>
-
-      <div class="space-y-1.5 max-h-52 overflow-y-auto pr-1">
-        <div class="flex justify-between items-center p-2 bg-zinc-950 rounded-lg border border-zinc-800">
-          <span class="text-xs text-red-400 font-semibold">마피아</span>
-          <div class="flex items-center gap-2">
-            <button onclick="changeRole('mafia', -1)" class="w-6 h-6 bg-zinc-800 rounded text-xs font-bold">-</button>
-            <span id="role-mafia" class="w-4 text-center text-xs font-bold">2</span>
-            <button onclick="changeRole('mafia', 1)" class="w-6 h-6 bg-zinc-800 rounded text-xs font-bold">+</button>
-          </div>
+        <div class="flex justify-between items-center mb-2.5">
+          <span class="text-xs text-zinc-400 font-semibold">역할 설정 (총 <span id="total-roles" class="text-white font-bold">9</span>개)</span>
+          <button id="preset-btn" onclick="apply9PlayerPreset()" class="text-[11px] text-blue-400 hover:text-blue-300 underline transition">9인 추천 세팅</button>
         </div>
 
-        <div class="flex justify-between items-center p-2 bg-zinc-950 rounded-lg border border-zinc-800">
-          <span class="text-xs text-orange-400 font-semibold">스파이</span>
-          <div class="flex items-center gap-2">
-            <button onclick="changeRole('spy', -1)" class="w-6 h-6 bg-zinc-800 rounded text-xs font-bold">-</button>
-            <span id="role-spy" class="w-4 text-center text-xs font-bold">1</span>
-            <button onclick="changeRole('spy', 1)" class="w-6 h-6 bg-zinc-800 rounded text-xs font-bold">+</button>
+        <!-- 스크롤 없는 역할 리스트 -->
+        <div class="space-y-1.5">
+          <div class="flex justify-between items-center p-2 bg-zinc-950 rounded-lg border border-zinc-800/80">
+            <span class="text-xs text-red-400 font-semibold">마피아</span>
+            <div class="flex items-center gap-2">
+              <button onclick="changeRole('mafia', -1)" class="role-btn w-6 h-6 bg-zinc-800 rounded text-xs font-bold hover:bg-zinc-700">-</button>
+              <span id="role-mafia" class="w-4 text-center text-xs font-bold">2</span>
+              <button onclick="changeRole('mafia', 1)" class="role-btn w-6 h-6 bg-zinc-800 rounded text-xs font-bold hover:bg-zinc-700">+</button>
+            </div>
           </div>
-        </div>
 
-        <div class="flex justify-between items-center p-2 bg-zinc-950 rounded-lg border border-zinc-800">
-          <span class="text-xs text-blue-400 font-semibold">경찰</span>
-          <div class="flex items-center gap-2">
-            <button onclick="changeRole('police', -1)" class="w-6 h-6 bg-zinc-800 rounded text-xs font-bold">-</button>
-            <span id="role-police" class="w-4 text-center text-xs font-bold">1</span>
-            <button onclick="changeRole('police', 1)" class="w-6 h-6 bg-zinc-800 rounded text-xs font-bold">+</button>
+          <div class="flex justify-between items-center p-2 bg-zinc-950 rounded-lg border border-zinc-800/80">
+            <span class="text-xs text-orange-400 font-semibold">스파이</span>
+            <div class="flex items-center gap-2">
+              <button onclick="changeRole('spy', -1)" class="role-btn w-6 h-6 bg-zinc-800 rounded text-xs font-bold hover:bg-zinc-700">-</button>
+              <span id="role-spy" class="w-4 text-center text-xs font-bold">1</span>
+              <button onclick="changeRole('spy', 1)" class="role-btn w-6 h-6 bg-zinc-800 rounded text-xs font-bold hover:bg-zinc-700">+</button>
+            </div>
           </div>
-        </div>
 
-        <div class="flex justify-between items-center p-2 bg-zinc-950 rounded-lg border border-zinc-800">
-          <span class="text-xs text-emerald-400 font-semibold">의사</span>
-          <div class="flex items-center gap-2">
-            <button onclick="changeRole('doctor', -1)" class="w-6 h-6 bg-zinc-800 rounded text-xs font-bold">-</button>
-            <span id="role-doctor" class="w-4 text-center text-xs font-bold">1</span>
-            <button onclick="changeRole('doctor', 1)" class="w-6 h-6 bg-zinc-800 rounded text-xs font-bold">+</button>
+          <div class="flex justify-between items-center p-2 bg-zinc-950 rounded-lg border border-zinc-800/80">
+            <span class="text-xs text-blue-400 font-semibold">경찰</span>
+            <div class="flex items-center gap-2">
+              <button onclick="changeRole('police', -1)" class="role-btn w-6 h-6 bg-zinc-800 rounded text-xs font-bold hover:bg-zinc-700">-</button>
+              <span id="role-police" class="w-4 text-center text-xs font-bold">1</span>
+              <button onclick="changeRole('police', 1)" class="role-btn w-6 h-6 bg-zinc-800 rounded text-xs font-bold hover:bg-zinc-700">+</button>
+            </div>
           </div>
-        </div>
 
-        <div class="flex justify-between items-center p-2 bg-zinc-950 rounded-lg border border-zinc-800">
-          <span class="text-xs text-purple-400 font-semibold">영매</span>
-          <div class="flex items-center gap-2">
-            <button onclick="changeRole('medium', -1)" class="w-6 h-6 bg-zinc-800 rounded text-xs font-bold">-</button>
-            <span id="role-medium" class="w-4 text-center text-xs font-bold">1</span>
-            <button onclick="changeRole('medium', 1)" class="w-6 h-6 bg-zinc-800 rounded text-xs font-bold">+</button>
+          <div class="flex justify-between items-center p-2 bg-zinc-950 rounded-lg border border-zinc-800/80">
+            <span class="text-xs text-emerald-400 font-semibold">의사</span>
+            <div class="flex items-center gap-2">
+              <button onclick="changeRole('doctor', -1)" class="role-btn w-6 h-6 bg-zinc-800 rounded text-xs font-bold hover:bg-zinc-700">-</button>
+              <span id="role-doctor" class="w-4 text-center text-xs font-bold">1</span>
+              <button onclick="changeRole('doctor', 1)" class="role-btn w-6 h-6 bg-zinc-800 rounded text-xs font-bold hover:bg-zinc-700">+</button>
+            </div>
           </div>
-        </div>
 
-        <div class="flex justify-between items-center p-2 bg-zinc-950 rounded-lg border border-zinc-800">
-          <span class="text-xs text-zinc-300 font-semibold">시민</span>
-          <div class="flex items-center gap-2">
-            <button onclick="changeRole('citizen', -1)" class="w-6 h-6 bg-zinc-800 rounded text-xs font-bold">-</button>
-            <span id="role-citizen" class="w-4 text-center text-xs font-bold">3</span>
-            <button onclick="changeRole('citizen', 1)" class="w-6 h-6 bg-zinc-800 rounded text-xs font-bold">+</button>
+          <div class="flex justify-between items-center p-2 bg-zinc-950 rounded-lg border border-zinc-800/80">
+            <span class="text-xs text-purple-400 font-semibold">영매</span>
+            <div class="flex items-center gap-2">
+              <button onclick="changeRole('medium', -1)" class="role-btn w-6 h-6 bg-zinc-800 rounded text-xs font-bold hover:bg-zinc-700">-</button>
+              <span id="role-medium" class="w-4 text-center text-xs font-bold">1</span>
+              <button onclick="changeRole('medium', 1)" class="role-btn w-6 h-6 bg-zinc-800 rounded text-xs font-bold hover:bg-zinc-700">+</button>
+            </div>
+          </div>
+
+          <div class="flex justify-between items-center p-2 bg-zinc-950 rounded-lg border border-zinc-800/80">
+            <span class="text-xs text-zinc-300 font-semibold">시민</span>
+            <div class="flex items-center gap-2">
+              <button onclick="changeRole('citizen', -1)" class="role-btn w-6 h-6 bg-zinc-800 rounded text-xs font-bold hover:bg-zinc-700">-</button>
+              <span id="role-citizen" class="w-4 text-center text-xs font-bold">3</span>
+              <button onclick="changeRole('citizen', 1)" class="role-btn w-6 h-6 bg-zinc-800 rounded text-xs font-bold hover:bg-zinc-700">+</button>
+            </div>
           </div>
         </div>
       </div>
 
+      <!-- 하단 액션 버튼 2개 -->
       <div class="space-y-2 pt-2">
-        <button id="assign-btn" onclick="assignRoles()" class="w-full py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl shadow-lg transition active:scale-[0.98]">역할 분배하기</button>
+        <button id="assign-btn" onclick="assignRoles()" class="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl shadow-lg transition text-sm">역할 분배하기</button>
         <button onclick="resetRoles()" class="w-full py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-xs font-bold">역할 초기화</button>
       </div>
     </div>
@@ -121,9 +129,10 @@
   <script>
     const socket = io();
     let currentPlayers = 0;
+    let isRoleAssigned = false;
     const roles = { mafia: 2, spy: 1, police: 1, doctor: 1, medium: 1, citizen: 3 };
 
-    socket.on('init_state', ({ inviteCode }) => {
+    socket.on('init_state', ({ inviteCode, isAssigned }) => {
       document.getElementById('invite-code').innerText = inviteCode;
       
       const playUrl = `${window.location.origin}/play?code=${inviteCode}`;
@@ -131,28 +140,35 @@
       
       document.getElementById('qr-thumb').src = qrApi;
       document.getElementById('qr-large').src = qrApi;
+      isRoleAssigned = isAssigned;
     });
 
-    socket.on('update_players', (players) => {
+    socket.on('update_players', ({ players, isAssigned }) => {
       currentPlayers = players.length;
+      isRoleAssigned = isAssigned;
+      
       document.getElementById('player-count').innerText = currentPlayers;
       document.getElementById('player-list').innerHTML = players.map(p => `
-        <div class="flex justify-between items-center p-2 bg-zinc-800/60 rounded-lg border border-zinc-700/50">
-          <span>${p.nickname}</span>
-          <span class="text-xs text-zinc-400 font-semibold">${p.role ? '분배완료' : '대기중'}</span>
+        <div class="flex justify-between items-center p-2 bg-zinc-900 rounded-lg border border-zinc-800">
+          <span class="font-medium text-white">${p.nickname}</span>
+          <span class="text-xs font-semibold ${isRoleAssigned ? 'text-emerald-400' : 'text-zinc-500'}">
+            ${isRoleAssigned ? '분배 완료' : '대기 중'}
+          </span>
         </div>
       `).join('');
+      
       updateTotal();
     });
 
     function changeRole(role, delta) {
-      if (roles[role] + delta < 0) return;
+      if (isRoleAssigned || roles[role] + delta < 0) return;
       roles[role] += delta;
       document.getElementById(`role-${role}`).innerText = roles[role];
       updateTotal();
     }
 
     function apply9PlayerPreset() {
+      if (isRoleAssigned) return;
       Object.assign(roles, { mafia: 2, spy: 1, police: 1, doctor: 1, medium: 1, citizen: 3 });
       for (const key in roles) { document.getElementById(`role-${key}`).innerText = roles[key]; }
       updateTotal();
@@ -161,14 +177,33 @@
     function updateTotal() {
       const total = Object.values(roles).reduce((a, b) => a + b, 0);
       document.getElementById('total-roles').innerText = total;
+      
       const assignBtn = document.getElementById('assign-btn');
+      const presetBtn = document.getElementById('preset-btn');
+      const roleBtns = document.querySelectorAll('.role-btn');
+
+      // 역할 분배가 이미 실행된 경우
+      if (isRoleAssigned) {
+        assignBtn.disabled = true;
+        assignBtn.className = "w-full py-3 bg-emerald-900/40 text-emerald-400 font-bold rounded-xl border border-emerald-800/60 cursor-not-allowed text-sm";
+        assignBtn.innerText = "✓ 역할 분배 완료";
+        
+        presetBtn.classList.add('hidden');
+        roleBtns.forEach(btn => btn.disabled = true);
+        return;
+      }
+
+      // 분배 전 상태
+      presetBtn.classList.remove('hidden');
+      roleBtns.forEach(btn => btn.disabled = false);
+
       if (total !== currentPlayers) {
         assignBtn.disabled = true;
-        assignBtn.className = "w-full py-3.5 bg-zinc-800 text-zinc-500 font-bold rounded-xl cursor-not-allowed border border-zinc-700/50 text-xs";
+        assignBtn.className = "w-full py-3 bg-zinc-800 text-zinc-500 font-bold rounded-xl cursor-not-allowed border border-zinc-700/50 text-xs";
         assignBtn.innerText = `인원 불일치 (선택: ${total}명 / 접속: ${currentPlayers}명)`;
       } else {
         assignBtn.disabled = false;
-        assignBtn.className = "w-full py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl shadow-lg transition active:scale-[0.98] text-sm";
+        assignBtn.className = "w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl shadow-lg transition text-sm cursor-pointer active:scale-[0.98]";
         assignBtn.innerText = "역할 분배하기";
       }
     }
