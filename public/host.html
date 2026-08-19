@@ -2,18 +2,122 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <title>마피아 게임 - 호스트</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>마피아 게임 - 진행자 대시보드</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="/socket.io/socket.io.js"></script>
 </head>
-<body class="bg-zinc-950 text-white min-h-screen flex items-center justify-center p-4">
-  <div class="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-2xl p-6 space-y-5">
-    <h1 class="text-xl font-bold border-b border-zinc-800 pb-4">마피아 게임 호스트</h1>
-    <button onclick="startGame()" class="w-full py-3.5 bg-blue-600 font-bold rounded-xl">역할 분배 및 시작</button>
+<body class="bg-zinc-950 text-white min-h-screen p-6 flex flex-col items-center">
+  <div class="w-full max-w-2xl bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-2xl space-y-6">
+    <div class="flex justify-between items-center border-b border-zinc-800 pb-4">
+      <h1 class="text-2xl font-bold text-amber-400">🎩 호스트 제어판</h1>
+      <span id="phase-badge" class="px-3 py-1 bg-zinc-800 text-xs font-bold rounded-full">대기실</span>
+    </div>
+
+    <div>
+      <h2 class="text-sm font-semibold text-zinc-400 mb-2">접속한 참가자 목록 (<span id="player-count">0</span>명)</h2>
+      <div id="player-list" class="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto"></div>
+    </div>
+
+    <div id="lobby-controls" class="space-y-4 border-t border-zinc-800 pt-4">
+      <h3 class="text-sm font-semibold text-zinc-300">직업 비율 설정</h3>
+      <div class="grid grid-cols-3 gap-2 text-xs">
+        <label class="bg-zinc-950 p-2 rounded border border-zinc-800 flex justify-between items-center">
+          <span>마피아</span>
+          <input type="number" id="role-mafia" value="2" class="w-10 bg-zinc-800 text-center rounded">
+        </label>
+        <label class="bg-zinc-950 p-2 rounded border border-zinc-800 flex justify-between items-center">
+          <span>경찰</span>
+          <input type="number" id="role-police" value="1" class="w-10 bg-zinc-800 text-center rounded">
+        </label>
+        <label class="bg-zinc-950 p-2 rounded border border-zinc-800 flex justify-between items-center">
+          <span>의사</span>
+          <input type="number" id="role-doctor" value="1" class="w-10 bg-zinc-800 text-center rounded">
+        </label>
+      </div>
+      <button onclick="startGame()" class="w-full py-3 bg-blue-600 hover:bg-blue-500 font-bold rounded-xl shadow-lg">게임 시작 및 직업 분배</button>
+    </div>
+
+    <div id="game-controls" class="hidden space-y-4 border-t border-zinc-800 pt-4">
+      <div class="flex gap-2">
+        <button onclick="processNight()" class="flex-1 py-3 bg-indigo-600 hover:bg-indigo-500 font-bold rounded-xl">🌙 밤 결과 처리 (낮으로 전환)</button>
+        <button onclick="processVote()" class="flex-1 py-3 bg-amber-600 hover:bg-amber-500 font-bold rounded-xl">☀️ 투표 집계 및 처형 (밤으로 전환)</button>
+      </div>
+      <button onclick="resetGame()" class="w-full py-2 bg-red-900/40 hover:bg-red-800/60 text-red-300 border border-red-700/50 text-xs font-bold rounded-lg">게임 리셋 및 대기실 이동</button>
+    </div>
+
+    <div class="border-t border-zinc-800 pt-4">
+      <h3 class="text-xs font-semibold text-zinc-500 mb-2">진행 로그</h3>
+      <div id="logs" class="bg-zinc-950 p-3 rounded-lg text-xs font-mono text-zinc-400 h-32 overflow-y-auto space-y-1"></div>
+    </div>
   </div>
+
   <script>
     const socket = io();
-    function startGame() { socket.emit('start_game', {}); alert('게임을 시작합니다!'); }
+
+    socket.on('update_players', renderPlayers);
+    socket.on('init_state', ({ players, gameState }) => {
+      renderPlayers(players);
+      updatePhase(gameState.phase);
+    });
+
+    socket.on('phase_change', (gameState) => {
+      updatePhase(gameState.phase);
+      log(`단계 변경: ${gameState.phase} (Day ${gameState.dayCount})`);
+    });
+
+    socket.on('night_result', ({ killedId, players }) => {
+      renderPlayers(players);
+      const killed = players.find(p => p.id === killedId);
+      log(killed ? `[낮] 지난밤 ${killed.nickname} 님이 마피아에게 습격당했습니다.` : `[낮] 지난밤 평화롭게 지나갔습니다.`);
+    });
+
+    socket.on('vote_result', ({ executedId, players }) => {
+      renderPlayers(players);
+      const executed = players.find(p => p.id === executedId);
+      log(executed ? `[밤] 주민 투표로 ${executed.nickname} 님이 처형되었습니다.` : `[밤] 아무도 처형되지 않았습니다.`);
+    });
+
+    function renderPlayers(players) {
+      document.getElementById('player-count').innerText = players.length;
+      const list = document.getElementById('player-list');
+      list.innerHTML = players.map(p => `
+        <div class="p-2.5 bg-zinc-950 rounded-lg border border-zinc-800 flex justify-between items-center text-xs">
+          <span>${p.nickname}</span>
+          <span class="${p.isAlive ? 'text-emerald-400' : 'text-red-500 line-through'} font-bold">${p.isAlive ? '생존' : '사망'}</span>
+        </div>
+      `).join('');
+    }
+
+    function updatePhase(phase) {
+      const badge = document.getElementById('phase-badge');
+      badge.innerText = phase.toUpperCase();
+      if (phase === 'lobby') {
+        document.getElementById('lobby-controls').classList.remove('hidden');
+        document.getElementById('game-controls').classList.add('hidden');
+      } else {
+        document.getElementById('lobby-controls').classList.add('hidden');
+        document.getElementById('game-controls').classList.remove('hidden');
+      }
+    }
+
+    function startGame() {
+      const config = {
+        mafia: parseInt(document.getElementById('role-mafia').value) || 1,
+        police: parseInt(document.getElementById('role-police').value) || 1,
+        doctor: parseInt(document.getElementById('role-doctor').value) || 1
+      };
+      socket.emit('start_game', config);
+    }
+
+    function processNight() { socket.emit('process_night'); }
+    function processVote() { socket.emit('process_vote'); }
+    function resetGame() { socket.emit('reset_game'); }
+    function log(msg) {
+      const logs = document.getElementById('logs');
+      logs.innerHTML += `<div>> ${msg}</div>`;
+      logs.scrollTop = logs.scrollHeight;
+    }
   </script>
 </body>
 </html>
