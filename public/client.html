@@ -2,18 +2,101 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>마피아 게임 - 참가자</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="/socket.io/socket.io.js"></script>
 </head>
 <body class="bg-zinc-950 text-white min-h-screen flex items-center justify-center p-4">
-  <div class="text-center bg-zinc-900 p-6 rounded-2xl border border-zinc-800">
-    <h2 class="text-xl font-bold">참가자 화면</h2>
-    <p class="text-xs text-zinc-400 mt-2">대기 중...</p>
+  <div class="w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-2xl space-y-5 text-center">
+    
+    <!-- 1. 닉네임 입력 화면 -->
+    <div id="login-screen" class="space-y-4">
+      <h2 class="text-xl font-bold">플레이어 닉네임 입력</h2>
+      <input type="text" id="nickname-input" placeholder="닉네임 입력" class="w-full p-3 bg-zinc-950 border border-zinc-800 rounded-xl text-center text-sm">
+      <button onclick="joinGame()" class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 font-bold rounded-xl">대기실 입장</button>
+    </div>
+
+    <!-- 2. 게임 참가 메인 화면 -->
+    <div id="game-screen" class="hidden space-y-4">
+      <div class="flex justify-between items-center text-xs text-zinc-400 border-b border-zinc-800 pb-3">
+        <span id="my-name" class="font-bold text-white"></span>
+        <span id="game-phase" class="px-2 py-0.5 bg-zinc-800 rounded text-amber-400 font-bold">대기 중</span>
+      </div>
+
+      <div id="role-box" class="p-4 bg-zinc-950 border border-zinc-800 rounded-xl hidden">
+        <div class="text-xs text-zinc-500">당신의 직업</div>
+        <div id="my-role" class="text-2xl font-black text-red-500 mt-1"></div>
+      </div>
+
+      <div id="action-section" class="space-y-2 text-left">
+        <h3 id="action-title" class="text-xs font-semibold text-zinc-400">지목할 대상 선택</h3>
+        <div id="target-list" class="space-y-1.5 max-h-48 overflow-y-auto"></div>
+      </div>
+
+      <p id="status-msg" class="text-xs text-zinc-500">호스트가 게임을 시작하길 기다리고 있습니다.</p>
+    </div>
   </div>
+
   <script>
     const socket = io();
-    socket.on('game_started', () => alert('게임을 시작합니다!'));
+    let myRole = null;
+    let playersData = [];
+
+    function joinGame() {
+      const name = document.getElementById('nickname-input').value.trim();
+      if (!name) return alert('닉네임을 입력하세요.');
+      socket.emit('join_game', name);
+      document.getElementById('login-screen').classList.add('hidden');
+      document.getElementById('game-screen').classList.remove('hidden');
+      document.getElementById('my-name').innerText = name;
+    }
+
+    socket.on('your_role', ({ role }) => {
+      myRole = role;
+      document.getElementById('role-box').classList.remove('hidden');
+      const roleNames = { mafia: '마피아 🕵️‍♂️', police: '경찰 👮‍♂️', doctor: '의사 🩺', citizen: '시민 🧑' };
+      document.getElementById('my-role').innerText = roleNames[role] || role;
+    });
+
+    socket.on('phase_change', ({ phase }) => {
+      document.getElementById('game-phase').innerText = phase.toUpperCase();
+      renderActionList(phase);
+    });
+
+    socket.on('update_players', (players) => {
+      playersData = players;
+    });
+
+    socket.on('action_confirmed', (targetId) => {
+      document.getElementById('status-msg').innerText = '선택이 완료되었습니다. 결과를 기다리는 중...';
+    });
+
+    function renderActionList(phase) {
+      const list = document.getElementById('target-list');
+      const title = document.getElementById('action-title');
+      list.innerHTML = '';
+
+      if (phase === 'night') {
+        if (myRole === 'mafia') title.innerText = '🌙 처단할 시민을 선택하세요:';
+        else if (myRole === 'doctor') title.innerText = '🌙 살릴 사람을 선택하세요:';
+        else title.innerText = '🌙 밤이 되었습니다. 조용히 대기하세요.';
+
+        if (['mafia', 'doctor'].includes(myRole)) {
+          playersData.filter(p => p.isAlive).forEach(p => {
+            list.innerHTML += `<button onclick="sendNightAction('${p.id}')" class="w-full p-2 bg-zinc-950 border border-zinc-800 rounded text-xs text-left hover:bg-zinc-800">${p.nickname}</button>`;
+          });
+        }
+      } else if (phase === 'day') {
+        title.innerText = '☀️ 의심스러운 사람에게 투표하세요:';
+        playersData.filter(p => p.isAlive).forEach(p => {
+          list.innerHTML += `<button onclick="sendVote('${p.id}')" class="w-full p-2 bg-zinc-950 border border-zinc-800 rounded text-xs text-left hover:bg-zinc-800">${p.nickname}</button>`;
+        });
+      }
+    }
+
+    function sendNightAction(targetId) { socket.emit('night_action', { targetId }); }
+    function sendVote(targetId) { socket.emit('cast_vote', targetId); }
   </script>
 </body>
 </html>
