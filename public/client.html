@@ -10,6 +10,7 @@
 <body class="bg-zinc-950 text-white min-h-screen flex items-center justify-center p-4">
   <div class="w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-2xl space-y-5 text-center">
     
+    <!-- 입장 카드 -->
     <div id="login-screen" class="space-y-4">
       <h2 class="text-xl font-bold">마피아 게임 입장</h2>
       
@@ -27,26 +28,42 @@
       <button onclick="joinGame()" class="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 font-bold rounded-xl shadow-lg transition">대기실 입장</button>
     </div>
 
-    <div id="game-screen" class="hidden space-y-5 py-4">
+    <!-- 역할 및 상태 확인 카드 -->
+    <div id="game-screen" class="hidden space-y-5 py-2">
       <div class="text-xs border-b border-zinc-800 pb-3 flex justify-between items-center">
         <span class="text-zinc-400">플레이어</span>
         <span id="my-name" class="font-bold text-white text-sm"></span>
       </div>
 
-      <div class="space-y-2">
+      <div class="space-y-3">
         <div class="text-xs text-zinc-500 font-semibold">당신의 역할</div>
-        <div id="role-box" class="p-6 bg-zinc-950 border border-zinc-800 rounded-2xl">
+        
+        <div id="role-box" class="p-5 bg-zinc-950 border border-zinc-800 rounded-2xl space-y-3">
           <div id="my-role" class="text-3xl font-black text-zinc-600">대기 중...</div>
+          <p id="my-role-desc" class="text-xs text-zinc-400 leading-relaxed break-keep hidden"></p>
         </div>
       </div>
 
-      <p id="status-msg" class="text-xs text-zinc-500">호스트가 역할을 분배할 때까지 기다려 주세요.</p>
+      <!-- 사망 안내 레이어 -->
+      <div id="death-banner" class="hidden p-3 bg-red-950/60 border border-red-800 rounded-xl text-red-300 text-xs font-bold animate-pulse">
+        💀 사망하셨습니다. 발언권이 없으며 관전 모드입니다.
+      </div>
+
+      <p id="status-msg" class="text-xs text-zinc-500">사회자(호스트)의 진행 안내에 따라주세요.</p>
     </div>
 
   </div>
 
   <script>
     const socket = io();
+
+    const roleDetails = {
+      mafia: { name: '🔴 마피아', desc: '밤마다 시민 한 명을 지목해 제거합니다. 낮에는 시민인 척 숨어 살아남는 것이 목표입니다.' },
+      citizen: { name: '⚪ 시민', desc: '특별한 능력이 없습니다. 토론과 투표를 통해 마피아를 찾아내야 합니다.' },
+      police: { name: '🔵 경찰', desc: '밤마다 플레이어 한 명을 지목해 마피아인지 조사합니다.' },
+      doctor: { name: '🟢 의사', desc: '밤마다 자신을 포함해 한 명을 마피아의 공격으로부터 보호합니다.' },
+      medium: { name: '🟣 영매', desc: '밤에 죽은 사람이 남긴 메시지나 죽은 이의 정체를 알 수 있습니다.' }
+    };
 
     window.onload = () => {
       const urlParams = new URLSearchParams(window.location.search);
@@ -75,26 +92,29 @@
     });
 
     socket.on('your_role', ({ role }) => {
-      const roleNames = { 
-        mafia: '🔴 마피아', 
-        spy: '🟠 스파이', 
-        police: '🔵 경찰', 
-        doctor: '🟢 의사', 
-        medium: '🟣 영매', 
-        citizen: '⚪ 시민' 
-      };
-      
       const roleEl = document.getElementById('my-role');
-      roleEl.innerText = roleNames[role] || role;
-      roleEl.className = "text-3xl font-black text-amber-400 animate-pulse";
-      document.getElementById('status-msg').innerText = "역할이 성공적으로 할당되었습니다!";
+      const descEl = document.getElementById('my-role-desc');
+      const info = roleDetails[role] || { name: role, desc: '' };
+
+      roleEl.innerText = info.name;
+      roleEl.className = "text-3xl font-black text-amber-400";
+      descEl.innerText = info.desc;
+      descEl.classList.remove('hidden');
+      document.getElementById('death-banner').classList.add('hidden');
+    });
+
+    socket.on('player_died', () => {
+      document.getElementById('death-banner').classList.remove('hidden');
     });
 
     socket.on('roles_reset', () => {
       const roleEl = document.getElementById('my-role');
+      const descEl = document.getElementById('my-role-desc');
       roleEl.innerText = "대기 중...";
       roleEl.className = "text-3xl font-black text-zinc-600";
-      document.getElementById('status-msg').innerText = "호스트가 역할을 초기화했습니다.";
+      descEl.innerText = "";
+      descEl.classList.add('hidden');
+      document.getElementById('death-banner').classList.add('hidden');
     });
   </script>
 </body>
