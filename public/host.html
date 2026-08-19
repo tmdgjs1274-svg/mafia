@@ -3,119 +3,128 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>마피아 역할 분배기 - 호스트</title>
+  <title>마피아 AI 사회자 대시보드 - 호스트</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="/socket.io/socket.io.js"></script>
 </head>
 <body class="bg-zinc-950 text-white min-h-screen p-4 flex items-center justify-center">
-  <!-- 가로형 레이아웃 컨테이너 -->
-  <div class="w-full max-w-4xl bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-2xl grid grid-cols-1 md:grid-cols-2 gap-6">
+
+  <div class="w-full max-w-5xl bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-2xl grid grid-cols-1 md:grid-cols-12 gap-6">
     
-    <!-- LEFT PANEL: 제목, 코드, 참여자 목록 -->
-    <div class="flex flex-col justify-between space-y-4">
+    <!-- LEFT PANEL: 방 정보 및 플레이어 상태 (4 컬럼) -->
+    <div class="md:col-span-4 flex flex-col justify-between space-y-4 border-r border-zinc-800/80 pr-0 md:pr-4">
       <div>
-        <span class="text-xs text-emerald-400 font-bold uppercase tracking-wider">Host Dashboard</span>
-        <h1 class="text-2xl font-bold mt-0.5">역할 분배 대기실</h1>
+        <span class="text-xs text-emerald-400 font-bold uppercase tracking-wider">Host & Moderator</span>
+        <h1 class="text-2xl font-bold mt-0.5">마피아 자동 사회자</h1>
       </div>
 
-      <!-- 초대 코드 & QR 카드 -->
-      <div class="p-3.5 bg-zinc-950 border border-zinc-800 rounded-xl flex items-center justify-between">
+      <!-- 초대 코드 & QR -->
+      <div class="p-3 bg-zinc-950 border border-zinc-800 rounded-xl flex items-center justify-between">
         <div>
-          <div class="text-[11px] text-zinc-500 font-semibold">참가 초대 코드</div>
-          <div id="invite-code" class="text-2xl font-black tracking-widest text-emerald-400">----</div>
-          <div class="text-[10px] text-zinc-400 mt-0.5">QR을 누르면 크게 확대됩니다</div>
+          <div class="text-[10px] text-zinc-500 font-semibold">참가 초대 코드</div>
+          <div id="invite-code" class="text-xl font-black tracking-widest text-emerald-400">----</div>
         </div>
         <div onclick="openQrModal()" class="cursor-pointer bg-white p-1 rounded-lg hover:opacity-90 transition">
-          <img id="qr-thumb" src="" alt="QR Code" class="w-12 h-12">
+          <img id="qr-thumb" src="" alt="QR Code" class="w-10 h-10">
         </div>
       </div>
 
-      <!-- 접속한 참가자 리스트 -->
+      <!-- 참가자 상태 목록 -->
       <div class="flex-1 flex flex-col min-h-0">
-        <div class="flex justify-between text-sm mb-2">
-          <span class="text-zinc-400 font-medium">접속한 참가자</span>
+        <div class="flex justify-between text-xs mb-2">
+          <span class="text-zinc-400 font-medium">참가자 현황</span>
           <span class="text-zinc-400"><b id="player-count" class="text-emerald-400">0</b> 명</span>
         </div>
-        <div id="player-list" class="space-y-1.5 overflow-y-auto pr-1 text-xs max-h-48 border border-zinc-800/80 rounded-xl p-2 bg-zinc-950/50"></div>
+        <div id="player-list" class="space-y-1.5 overflow-y-auto max-h-60 border border-zinc-800/80 rounded-xl p-2 bg-zinc-950/50 text-xs"></div>
       </div>
     </div>
 
-    <!-- RIGHT PANEL: 역할 리스트 (노 스크롤) / 버튼 -->
-    <div class="flex flex-col justify-between space-y-3 pl-0 md:pl-2 border-t md:border-t-0 md:border-l border-zinc-800/80 pt-4 md:pt-0">
-      <div>
-        <div class="flex justify-between items-center mb-2.5">
-          <span class="text-xs text-zinc-400 font-semibold">역할 설정 (총 <span id="total-roles" class="text-white font-bold">9</span>개)</span>
-          <button id="preset-btn" onclick="apply9PlayerPreset()" class="text-[11px] text-blue-400 hover:text-blue-300 underline transition">9인 추천 세팅</button>
+    <!-- RIGHT PANEL: 게임 진행 제어 (8 컬럼) -->
+    <div class="md:col-span-8 flex flex-col justify-between space-y-4">
+      
+      <!-- MODE 1: 대기실 및 역할 설정 (게임 시작 전) -->
+      <div id="setup-panel" class="space-y-4">
+        <div class="flex justify-between items-center border-b border-zinc-800 pb-2">
+          <span class="text-xs text-zinc-400 font-semibold">역할 세팅 (총 <span id="total-roles" class="text-white font-bold">8</span>개)</span>
+          <button id="preset-btn" onclick="applyDefaultPreset()" class="text-[11px] text-blue-400 underline">8인 추천 세팅</button>
         </div>
 
-        <!-- 스크롤 없는 역할 리스트 -->
-        <div class="space-y-1.5">
-          <div class="flex justify-between items-center p-2 bg-zinc-950 rounded-lg border border-zinc-800/80">
-            <span class="text-xs text-red-400 font-semibold">마피아</span>
-            <div class="flex items-center gap-2">
-              <button onclick="changeRole('mafia', -1)" class="role-btn w-6 h-6 bg-zinc-800 rounded text-xs font-bold hover:bg-zinc-700">-</button>
-              <span id="role-mafia" class="w-4 text-center text-xs font-bold">2</span>
-              <button onclick="changeRole('mafia', 1)" class="role-btn w-6 h-6 bg-zinc-800 rounded text-xs font-bold hover:bg-zinc-700">+</button>
+        <div class="grid grid-cols-2 gap-2 text-xs">
+          <div class="flex justify-between items-center p-2 bg-zinc-950 rounded-lg border border-zinc-800">
+            <span class="text-red-400 font-semibold">🔴 마피아</span>
+            <div class="flex items-center gap-1.5">
+              <button onclick="changeRole('mafia', -1)" class="w-5 h-5 bg-zinc-800 rounded font-bold">-</button>
+              <span id="role-mafia" class="w-3 text-center font-bold">2</span>
+              <button onclick="changeRole('mafia', 1)" class="w-5 h-5 bg-zinc-800 rounded font-bold">+</button>
             </div>
           </div>
-
-          <div class="flex justify-between items-center p-2 bg-zinc-950 rounded-lg border border-zinc-800/80">
-            <span class="text-xs text-orange-400 font-semibold">스파이</span>
-            <div class="flex items-center gap-2">
-              <button onclick="changeRole('spy', -1)" class="role-btn w-6 h-6 bg-zinc-800 rounded text-xs font-bold hover:bg-zinc-700">-</button>
-              <span id="role-spy" class="w-4 text-center text-xs font-bold">1</span>
-              <button onclick="changeRole('spy', 1)" class="role-btn w-6 h-6 bg-zinc-800 rounded text-xs font-bold hover:bg-zinc-700">+</button>
+          <div class="flex justify-between items-center p-2 bg-zinc-950 rounded-lg border border-zinc-800">
+            <span class="text-blue-400 font-semibold">🔵 경찰</span>
+            <div class="flex items-center gap-1.5">
+              <button onclick="changeRole('police', -1)" class="w-5 h-5 bg-zinc-800 rounded font-bold">-</button>
+              <span id="role-police" class="w-3 text-center font-bold">1</span>
+              <button onclick="changeRole('police', 1)" class="w-5 h-5 bg-zinc-800 rounded font-bold">+</button>
             </div>
           </div>
-
-          <div class="flex justify-between items-center p-2 bg-zinc-950 rounded-lg border border-zinc-800/80">
-            <span class="text-xs text-blue-400 font-semibold">경찰</span>
-            <div class="flex items-center gap-2">
-              <button onclick="changeRole('police', -1)" class="role-btn w-6 h-6 bg-zinc-800 rounded text-xs font-bold hover:bg-zinc-700">-</button>
-              <span id="role-police" class="w-4 text-center text-xs font-bold">1</span>
-              <button onclick="changeRole('police', 1)" class="role-btn w-6 h-6 bg-zinc-800 rounded text-xs font-bold hover:bg-zinc-700">+</button>
+          <div class="flex justify-between items-center p-2 bg-zinc-950 rounded-lg border border-zinc-800">
+            <span class="text-emerald-400 font-semibold">🟢 의사</span>
+            <div class="flex items-center gap-1.5">
+              <button onclick="changeRole('doctor', -1)" class="w-5 h-5 bg-zinc-800 rounded font-bold">-</button>
+              <span id="role-doctor" class="w-3 text-center font-bold">1</span>
+              <button onclick="changeRole('doctor', 1)" class="w-5 h-5 bg-zinc-800 rounded font-bold">+</button>
             </div>
           </div>
-
-          <div class="flex justify-between items-center p-2 bg-zinc-950 rounded-lg border border-zinc-800/80">
-            <span class="text-xs text-emerald-400 font-semibold">의사</span>
-            <div class="flex items-center gap-2">
-              <button onclick="changeRole('doctor', -1)" class="role-btn w-6 h-6 bg-zinc-800 rounded text-xs font-bold hover:bg-zinc-700">-</button>
-              <span id="role-doctor" class="w-4 text-center text-xs font-bold">1</span>
-              <button onclick="changeRole('doctor', 1)" class="role-btn w-6 h-6 bg-zinc-800 rounded text-xs font-bold hover:bg-zinc-700">+</button>
+          <div class="flex justify-between items-center p-2 bg-zinc-950 rounded-lg border border-zinc-800">
+            <span class="text-purple-400 font-semibold">🟣 영매</span>
+            <div class="flex items-center gap-1.5">
+              <button onclick="changeRole('medium', -1)" class="w-5 h-5 bg-zinc-800 rounded font-bold">-</button>
+              <span id="role-medium" class="w-3 text-center font-bold">1</span>
+              <button onclick="changeRole('medium', 1)" class="w-5 h-5 bg-zinc-800 rounded font-bold">+</button>
             </div>
           </div>
-
-          <div class="flex justify-between items-center p-2 bg-zinc-950 rounded-lg border border-zinc-800/80">
-            <span class="text-xs text-purple-400 font-semibold">영매</span>
-            <div class="flex items-center gap-2">
-              <button onclick="changeRole('medium', -1)" class="role-btn w-6 h-6 bg-zinc-800 rounded text-xs font-bold hover:bg-zinc-700">-</button>
-              <span id="role-medium" class="w-4 text-center text-xs font-bold">1</span>
-              <button onclick="changeRole('medium', 1)" class="role-btn w-6 h-6 bg-zinc-800 rounded text-xs font-bold hover:bg-zinc-700">+</button>
-            </div>
-          </div>
-
-          <div class="flex justify-between items-center p-2 bg-zinc-950 rounded-lg border border-zinc-800/80">
-            <span class="text-xs text-zinc-300 font-semibold">시민</span>
-            <div class="flex items-center gap-2">
-              <button onclick="changeRole('citizen', -1)" class="role-btn w-6 h-6 bg-zinc-800 rounded text-xs font-bold hover:bg-zinc-700">-</button>
-              <span id="role-citizen" class="w-4 text-center text-xs font-bold">3</span>
-              <button onclick="changeRole('citizen', 1)" class="role-btn w-6 h-6 bg-zinc-800 rounded text-xs font-bold hover:bg-zinc-700">+</button>
+          <div class="flex justify-between items-center p-2 bg-zinc-950 rounded-lg border border-zinc-800 col-span-2">
+            <span class="text-zinc-300 font-semibold">⚪ 시민</span>
+            <div class="flex items-center gap-1.5">
+              <button onclick="changeRole('citizen', -1)" class="w-5 h-5 bg-zinc-800 rounded font-bold">-</button>
+              <span id="role-citizen" class="w-3 text-center font-bold">3</span>
+              <button onclick="changeRole('citizen', 1)" class="w-5 h-5 bg-zinc-800 rounded font-bold">+</button>
             </div>
           </div>
         </div>
+
+        <button id="assign-btn" onclick="startGame()" class="w-full py-3.5 bg-blue-600 hover:bg-blue-500 font-bold rounded-xl text-sm transition">역할 분배 및 사회자 게임 시작</button>
       </div>
 
-      <!-- 하단 액션 버튼 2개 -->
-      <div class="space-y-2 pt-2">
-        <button id="assign-btn" onclick="assignRoles()" class="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl shadow-lg transition text-sm">역할 분배하기</button>
-        <button onclick="resetRoles()" class="w-full py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-xs font-bold">역할 초기화</button>
+      <!-- MODE 2: 사회자 진행 콘솔 (게임 시작 후) -->
+      <div id="game-panel" class="hidden space-y-4 flex-1 flex flex-col justify-between">
+        <!-- 사회자 상태창 -->
+        <div class="p-4 bg-zinc-950 border border-zinc-800 rounded-xl space-y-2">
+          <div class="flex justify-between items-center">
+            <span id="step-badge" class="px-2.5 py-1 bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-md text-xs font-bold">2. 첫째 날 밤</span>
+            <span id="timer-display" class="text-xl font-black text-amber-400 font-mono">--:--</span>
+          </div>
+          <div id="script-text" class="text-base font-bold text-zinc-100 leading-relaxed min-h-[4rem]">
+            사회자 멘트가 이곳에 출력됩니다.
+          </div>
+        </div>
+
+        <!-- 각 단계별 대화형 조작 보드 -->
+        <div id="action-controls" class="space-y-3 bg-zinc-950/40 p-3 rounded-xl border border-zinc-800/50">
+          <!-- 스크립트로 동적 변경됨 -->
+        </div>
+
+        <!-- 하단 컨트롤 버튼 -->
+        <div class="flex gap-2 border-t border-zinc-800 pt-3">
+          <button id="next-step-btn" onclick="handleNextStep()" class="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 font-bold rounded-xl text-sm transition">다음 단계 진행 ➔</button>
+          <button onclick="resetGame()" class="px-4 py-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 font-bold rounded-xl text-xs">게임 리셋</button>
+        </div>
       </div>
+
     </div>
 
   </div>
 
-  <!-- QR코드 확대 모달 -->
+  <!-- QR코드 모달 -->
   <div id="qr-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50" onclick="closeQrModal()">
     <div class="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl text-center space-y-4 max-w-xs w-full" onclick="event.stopPropagation()">
       <h3 class="text-base font-bold text-white">참가용 QR 코드</h3>
@@ -128,48 +137,58 @@
 
   <script>
     const socket = io();
-    let currentPlayers = 0;
-    let isRoleAssigned = false;
-    const roles = { mafia: 2, spy: 1, police: 1, doctor: 1, medium: 1, citizen: 3 };
+    let playersData = [];
+    let roles = { mafia: 2, police: 1, doctor: 1, medium: 1, citizen: 3 };
+    
+    // 게임 진행 상태 변수
+    let currentStep = 2; // 2: 첫밤, 3: 낮토론/투표, 4: 밤능력사용, 5: 아침발표, 6: 승리검사
+    let nightTargetMafia = null;
+    let nightTargetDoctor = null;
+    let nightTargetPolice = null;
+    let timerInterval = null;
 
-    socket.on('init_state', ({ inviteCode, isAssigned }) => {
+    // 음성합성 (TTS)
+    function speak(text) {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.lang = 'ko-KR';
+        utter.rate = 0.9;
+        window.speechSynthesis.speak(utter);
+      }
+    }
+
+    socket.on('init_state', ({ inviteCode }) => {
       document.getElementById('invite-code').innerText = inviteCode;
-      
       const playUrl = `${window.location.origin}/play?code=${inviteCode}`;
       const qrApi = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(playUrl)}`;
-      
       document.getElementById('qr-thumb').src = qrApi;
       document.getElementById('qr-large').src = qrApi;
-      isRoleAssigned = isAssigned;
     });
 
-    socket.on('update_players', ({ players, isAssigned }) => {
-      currentPlayers = players.length;
-      isRoleAssigned = isAssigned;
-      
-      document.getElementById('player-count').innerText = currentPlayers;
+    socket.on('update_players', ({ players }) => {
+      playersData = players;
+      document.getElementById('player-count').innerText = players.length;
       document.getElementById('player-list').innerHTML = players.map(p => `
         <div class="flex justify-between items-center p-2 bg-zinc-900 rounded-lg border border-zinc-800">
-          <span class="font-medium text-white">${p.nickname}</span>
-          <span class="text-xs font-semibold ${isRoleAssigned ? 'text-emerald-400' : 'text-zinc-500'}">
-            ${isRoleAssigned ? '분배 완료' : '대기 중'}
+          <span class="font-medium ${p.isAlive ? 'text-white' : 'text-zinc-600 line-through'}">${p.nickname}</span>
+          <span class="text-[10px] font-semibold ${p.isAlive ? 'text-emerald-400' : 'text-red-500'}">
+            ${p.isAlive ? '생존' : '사망'}
           </span>
         </div>
       `).join('');
-      
       updateTotal();
     });
 
     function changeRole(role, delta) {
-      if (isRoleAssigned || roles[role] + delta < 0) return;
+      if (roles[role] + delta < 0) return;
       roles[role] += delta;
       document.getElementById(`role-${role}`).innerText = roles[role];
       updateTotal();
     }
 
-    function apply9PlayerPreset() {
-      if (isRoleAssigned) return;
-      Object.assign(roles, { mafia: 2, spy: 1, police: 1, doctor: 1, medium: 1, citizen: 3 });
+    function applyDefaultPreset() {
+      Object.assign(roles, { mafia: 2, police: 1, doctor: 1, medium: 1, citizen: 3 });
       for (const key in roles) { document.getElementById(`role-${key}`).innerText = roles[key]; }
       updateTotal();
     }
@@ -177,42 +196,278 @@
     function updateTotal() {
       const total = Object.values(roles).reduce((a, b) => a + b, 0);
       document.getElementById('total-roles').innerText = total;
-      
       const assignBtn = document.getElementById('assign-btn');
-      const presetBtn = document.getElementById('preset-btn');
-      const roleBtns = document.querySelectorAll('.role-btn');
-
-      // 역할 분배가 이미 실행된 경우
-      if (isRoleAssigned) {
+      if (total !== playersData.length) {
         assignBtn.disabled = true;
-        assignBtn.className = "w-full py-3 bg-emerald-900/40 text-emerald-400 font-bold rounded-xl border border-emerald-800/60 cursor-not-allowed text-sm";
-        assignBtn.innerText = "✓ 역할 분배 완료";
-        
-        presetBtn.classList.add('hidden');
-        roleBtns.forEach(btn => btn.disabled = true);
-        return;
-      }
-
-      // 분배 전 상태
-      presetBtn.classList.remove('hidden');
-      roleBtns.forEach(btn => btn.disabled = false);
-
-      if (total !== currentPlayers) {
-        assignBtn.disabled = true;
-        assignBtn.className = "w-full py-3 bg-zinc-800 text-zinc-500 font-bold rounded-xl cursor-not-allowed border border-zinc-700/50 text-xs";
-        assignBtn.innerText = `인원 불일치 (선택: ${total}명 / 접속: ${currentPlayers}명)`;
+        assignBtn.className = "w-full py-3.5 bg-zinc-800 text-zinc-500 font-bold rounded-xl cursor-not-allowed text-xs";
+        assignBtn.innerText = `인원 불일치 (선택: ${total}명 / 접속: ${playersData.length}명)`;
       } else {
         assignBtn.disabled = false;
-        assignBtn.className = "w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl shadow-lg transition text-sm cursor-pointer active:scale-[0.98]";
-        assignBtn.innerText = "역할 분배하기";
+        assignBtn.className = "w-full py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl shadow-lg transition text-sm cursor-pointer";
+        assignBtn.innerText = "역할 분배 및 사회자 게임 시작";
       }
+    }
+
+    function startTimer(seconds, onComplete) {
+      clearInterval(timerInterval);
+      let left = seconds;
+      const display = document.getElementById('timer-display');
+      
+      const updateText = () => {
+        const m = String(Math.floor(left / 60)).padStart(2, '0');
+        const s = String(left % 60).padStart(2, '0');
+        display.innerText = `${m}:${s}`;
+      };
+
+      updateText();
+      timerInterval = setInterval(() => {
+        left--;
+        updateText();
+        if (left <= 0) {
+          clearInterval(timerInterval);
+          if (onComplete) onComplete();
+        }
+      }, 1000);
+    }
+
+    function startGame() {
+      socket.emit('assign_roles', roles);
+      document.getElementById('setup-panel').classList.add('hidden');
+      document.getElementById('game-panel').classList.remove('hidden');
+      
+      currentStep = 2;
+      renderStep2();
+    }
+
+    // Step 2: 첫째 날 밤 (마피아 서로 확인)
+    function renderStep2() {
+      document.getElementById('step-badge').innerText = "2. 첫째 날 밤";
+      const script = "밤이 되었습니다. 모두 고개를 숙이고 깊은 잠에 들어주세요. 마피아는 눈을 뜨고 서로를 확인하세요.";
+      document.getElementById('script-text').innerText = script;
+      speak(script);
+
+      document.getElementById('action-controls').innerHTML = `
+        <div class="text-xs text-zinc-400">마피아들이 서로를 확인하도록 5초간 대기합니다.</div>
+      `;
+      
+      startTimer(5, () => {
+        const endScript = "마피아는 서로를 확인했으면 다시 고개를 숙이고 눈을 감아주세요.";
+        document.getElementById('script-text').innerText = endScript;
+        speak(endScript);
+      });
+    }
+
+    // Step 3: 낮 토론 및 투표
+    function renderStep3() {
+      document.getElementById('step-badge').innerText = "3. 낮 (첫 토론 및 투표)";
+      const script = "아침이 되었습니다. 모두 눈을 떠주세요. 지금부터 마피아를 찾기 위한 2분 토론을 시작합니다.";
+      document.getElementById('script-text').innerText = script;
+      speak(script);
+
+      startTimer(120, () => {
+        speak("토론 시간이 종료되었습니다. 가장 의심되는 사람을 지목해주세요.");
+      });
+
+      renderVoteControl();
+    }
+
+    function renderVoteControl() {
+      const alivePlayers = playersData.filter(p => p.isAlive);
+      const options = alivePlayers.map(p => `<option value="${p.id}">${p.nickname}</option>`).join('');
+
+      document.getElementById('action-controls').innerHTML = `
+        <div class="space-y-2">
+          <label class="text-xs text-zinc-400 block font-semibold">최다 득표자 선정 및 최후 변론</label>
+          <div class="flex gap-2">
+            <select id="vote-target" class="flex-1 p-2 bg-zinc-950 border border-zinc-800 rounded-lg text-xs">
+              <option value="">최다 득표자 선택</option>
+              ${options}
+            </select>
+            <button onclick="startDefense()" class="px-3 py-2 bg-amber-600 hover:bg-amber-500 rounded-lg text-xs font-bold">1분 변론 시작</button>
+          </div>
+          
+          <div class="flex gap-2 pt-2 border-t border-zinc-800">
+            <button onclick="executePlayer()" class="flex-1 py-2.5 bg-red-600 hover:bg-red-500 rounded-lg text-xs font-bold">과반수 찬성 ➔ 처형 확정</button>
+            <button onclick="skipExecution()" class="flex-1 py-2.5 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-xs font-bold">투표 부결 ➔ 밤으로</button>
+          </div>
+        </div>
+      `;
+    }
+
+    function startDefense() {
+      const targetId = document.getElementById('vote-target').value;
+      if (!targetId) return alert('최다 득표자를 선택해주세요.');
+      const p = playersData.find(item => item.id === targetId);
+      
+      const script = `${p.nickname}님이 가장 많은 표를 받았습니다. ${p.nickname}님은 1분 동안 최후 변론을 해주세요.`;
+      document.getElementById('script-text').innerText = script;
+      speak(script);
+      startTimer(60, () => {
+        speak("최후 변론이 끝났습니다. 찬반 투표를 진행해주세요.");
+      });
+    }
+
+    function executePlayer() {
+      const targetId = document.getElementById('vote-target').value;
+      if (!targetId) return alert('처형할 대상을 선택해주세요.');
+      const p = playersData.find(item => item.id === targetId);
+      
+      socket.emit('kill_player', p.id);
+      
+      const script = `찬성이 과반수를 넘었습니다. ${p.nickname}님이 처형됩니다. ${p.nickname}님은 정체를 밝히지 말고 관전해 주세요.`;
+      document.getElementById('script-text').innerText = script;
+      speak(script);
+
+      setTimeout(() => {
+        checkWinCondition();
+      }, 3000);
+    }
+
+    function skipExecution() {
+      const script = "투표가 부결되어 아무도 처형되지 않았습니다. 밤으로 넘어갑니다.";
+      document.getElementById('script-text').innerText = script;
+      speak(script);
+
+      setTimeout(() => {
+        currentStep = 4;
+        renderStep4();
+      }, 2000);
+    }
+
+    // Step 4: 밤 능력 사용
+    function renderStep4() {
+      document.getElementById('step-badge').innerText = "4. 밤 (특수 능력 사용)";
+      const script = "다시 밤이 되었습니다. 모두 눈을 감아주세요. 마피아, 의사, 경찰은 차례로 능력을 사용합니다.";
+      document.getElementById('script-text').innerText = script;
+      speak(script);
+
+      const alivePlayers = playersData.filter(p => p.isAlive);
+      const options = alivePlayers.map(p => `<option value="${p.id}">${p.nickname}</option>`).join('');
+
+      document.getElementById('action-controls').innerHTML = `
+        <div class="space-y-3 text-xs">
+          <div>
+            <label class="text-red-400 font-semibold block mb-1">🔴 마피아 공격 대상</label>
+            <select id="night-mafia" class="w-full p-2 bg-zinc-950 border border-zinc-800 rounded-lg">
+              <option value="">선택 안함</option>
+              ${options}
+            </select>
+          </div>
+          <div>
+            <label class="text-emerald-400 font-semibold block mb-1">🟢 의사 보호 대상</label>
+            <select id="night-doctor" class="w-full p-2 bg-zinc-950 border border-zinc-800 rounded-lg">
+              <option value="">선택 안함</option>
+              ${options}
+            </select>
+          </div>
+          <div>
+            <label class="text-blue-400 font-semibold block mb-1">🔵 경찰 조사 대상</label>
+            <div class="flex gap-2">
+              <select id="night-police" class="flex-1 p-2 bg-zinc-950 border border-zinc-800 rounded-lg">
+                <option value="">선택 안함</option>
+                ${options}
+              </select>
+              <button onclick="checkPolice()" class="px-3 py-1 bg-blue-600 hover:bg-blue-500 rounded-lg font-bold">결과 확인</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function checkPolice() {
+      const pid = document.getElementById('night-police').value;
+      if (!pid) return alert('경찰이 조사할 대상을 선택하세요.');
+      const p = playersData.find(item => item.id === pid);
+      if (p.role === 'mafia') {
+        alert(`[경찰 조사 결과] ${p.nickname}님은 🔴 마피아가 맞습니다! (끄덕임)`);
+      } else {
+        alert(`[경찰 조사 결과] ${p.nickname}님은 마피아가 아닙니다. (도리도리)`);
+      }
+    }
+
+    // Step 5: 아침 상황 발표
+    function renderStep5() {
+      document.getElementById('step-badge').innerText = "5. 아침 상황 발표";
+      nightTargetMafia = document.getElementById('night-mafia')?.value || null;
+      nightTargetDoctor = document.getElementById('night-doctor')?.value || null;
+
+      let script = "아침이 되었습니다. 모두 고개를 들고 눈을 떠주세요. ";
+
+      if (nightTargetMafia && nightTargetMafia === nightTargetDoctor) {
+        script += "의사가 치료에 성공하여, 간밤에 아무도 죽지 않았습니다.";
+      } else if (nightTargetMafia) {
+        const victim = playersData.find(p => p.id === nightTargetMafia);
+        if (victim) {
+          socket.emit('kill_player', victim.id);
+          script += `간밤에 ${victim.nickname}님이 마피아에게 습격당해 사망했습니다. 사망하신 분은 발언할 수 없습니다.`;
+        }
+      } else {
+        script += "간밤에 평화로웠습니다. 아무 일도 일어나지 않았습니다.";
+      }
+
+      document.getElementById('script-text').innerText = script;
+      speak(script);
+
+      document.getElementById('action-controls').innerHTML = `
+        <div class="text-xs text-zinc-400 p-2">아침 결과가 발표되었습니다. 승리 조건을 판정합니다.</div>
+      `;
+
+      setTimeout(() => {
+        checkWinCondition();
+      }, 4000);
+    }
+
+    // Step 6: 승리 조건 판정 (사이클 반복 여부)
+    function checkWinCondition() {
+      const alivePlayers = playersData.filter(p => p.isAlive);
+      const mafiaCount = alivePlayers.filter(p => p.role === 'mafia').length;
+      const citizenCount = alivePlayers.length - mafiaCount;
+
+      document.getElementById('step-badge').innerText = "6. 승리 조건 판정";
+
+      if (mafiaCount === 0) {
+        const winScript = "마피아가 모두 잡혔습니다! 시민 팀의 승리입니다!";
+        document.getElementById('script-text').innerText = winScript;
+        speak(winScript);
+        document.getElementById('action-controls').innerHTML = `<div class="text-xl font-bold text-emerald-400 text-center py-4">🎉 시민 팀 승리 🎉</div>`;
+        document.getElementById('next-step-btn').disabled = true;
+      } else if (mafiaCount >= citizenCount) {
+        const winScript = "마피아의 수와 시민의 수가 같아졌습니다! 마피아 팀의 승리입니다!";
+        document.getElementById('script-text').innerText = winScript;
+        speak(winScript);
+        document.getElementById('action-controls').innerHTML = `<div class="text-xl font-bold text-red-500 text-center py-4">🔴 마피아 팀 승리 🔴</div>`;
+        document.getElementById('next-step-btn').disabled = true;
+      } else {
+        // 조건 미달성 시 밤/낮 수순(2~5 사이클) 지속 반복
+        currentStep = 3; 
+        document.getElementById('script-text').innerText = "게임이 계속됩니다. 낮 토론으로 이어집니다.";
+        renderStep3();
+      }
+    }
+
+    function handleNextStep() {
+      if (currentStep === 2) {
+        currentStep = 3;
+        renderStep3();
+      } else if (currentStep === 3) {
+        currentStep = 4;
+        renderStep4();
+      } else if (currentStep === 4) {
+        currentStep = 5;
+        renderStep5();
+      }
+    }
+
+    function resetGame() {
+      socket.emit('reset_roles');
+      clearInterval(timerInterval);
+      document.getElementById('setup-panel').classList.remove('hidden');
+      document.getElementById('game-panel').classList.add('hidden');
+      document.getElementById('next-step-btn').disabled = false;
     }
 
     function openQrModal() { document.getElementById('qr-modal').classList.remove('hidden'); }
     function closeQrModal() { document.getElementById('qr-modal').classList.add('hidden'); }
-
-    function assignRoles() { socket.emit('assign_roles', roles); }
-    function resetRoles() { socket.emit('reset_roles'); }
   </script>
 </body>
 </html>
