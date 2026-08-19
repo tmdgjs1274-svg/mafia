@@ -13,8 +13,9 @@ app.get('/host', (req, res) => res.sendFile(path.join(__dirname, 'public', 'host
 app.get('/play', (req, res) => res.sendFile(path.join(__dirname, 'public', 'client.html')));
 app.get('/', (req, res) => res.redirect('/play'));
 
-let players = []; // { id, nickname, role, isAlive }
+let players = [];
 let gameState = { phase: 'lobby', dayCount: 1, votes: {}, nightActions: {} };
+let inviteCode = Math.random().toString(36).substring(2, 6).toUpperCase();
 
 function resetGame() {
   gameState = { phase: 'lobby', dayCount: 1, votes: {}, nightActions: {} };
@@ -26,31 +27,31 @@ function shuffle(array) {
 }
 
 io.on('connection', (socket) => {
-  socket.emit('init_state', { players, gameState });
+  socket.emit('init_state', { players, gameState, inviteCode });
 
-  socket.on('join_game', (nickname) => {
+  socket.on('join_game', ({ nickname, code }) => {
+    if (code !== inviteCode) {
+      return socket.emit('join_error', '초대코드가 일치하지 않습니다.');
+    }
     if (gameState.phase !== 'lobby') {
-      return socket.emit('error_msg', '이미 게임이 진행 중입니다.');
+      return socket.emit('join_error', '이미 게임이 진행 중입니다.');
     }
     const player = { id: socket.id, nickname: nickname || `플레이어_${socket.id.slice(0, 4)}`, role: null, isAlive: true };
     players.push(player);
+    socket.emit('join_success');
     io.emit('update_players', players);
   });
 
   socket.on('start_game', (roleConfig) => {
-    const totalRoles = Object.values(roleConfig).reduce((a, b) => a + b, 0);
-    if (players.length === 0) return socket.emit('error_msg', '참가자가 없습니다.');
-    
     let rolePool = [];
     Object.keys(roleConfig).forEach(role => {
       for (let i = 0; i < roleConfig[role]; i++) rolePool.push(role);
     });
 
-    while (rolePool.length < players.length) rolePool.push('citizen');
-    rolePool = shuffle(rolePool).slice(0, players.length);
+    rolePool = shuffle(rolePool);
 
     players.forEach((p, idx) => {
-      p.role = rolePool[idx];
+      p.role = rolePool[idx] || 'citizen';
       p.isAlive = true;
       io.to(p.id).emit('your_role', { role: p.role, nickname: p.nickname });
     });
@@ -64,7 +65,18 @@ io.on('connection', (socket) => {
   socket.on('night_action', ({ targetId }) => {
     const player = players.find(p => p.id === socket.id);
     if (!player || !player.isAlive) return;
+    
     gameState.nightActions[player.role] = targetId;
+
+    if (player.role === 'police') {
+      const target = players.find(p => p.id === targetId);
+      const isMafia = target && target.role === 'mafia';
+      socket.emit('police_result', { targetName: target ? target.nickname : '', isMafia });
+    } else if (player.role === 'spy') {
+      const target = players.find(p => p.id === targetId);
+      socket.emit('spy_result', { targetName: target ? target.nickname : '', role: target ? target.role : '' });
+    }
+
     socket.emit('action_confirmed', targetId);
   });
 
