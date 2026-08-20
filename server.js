@@ -18,6 +18,7 @@ let inviteCode = Math.random().toString(36).substring(2, 6).toUpperCase();
 let isAssigned = false;
 let currentPhase = 'WAITING';
 let hostSocketId = null;
+let hasExecutedToday = false;
 
 let nightActions = {
   mafiaVotes: {},
@@ -161,6 +162,7 @@ io.on('connection', (socket) => {
 
     isAssigned = true;
     currentPhase = 'DAY';
+    hasExecutedToday = false;
     resetNightActions();
     io.emit('update_players', { players, isAssigned });
     io.emit('phase_change', { phase: 'DAY', msg: '게임이 시작되었습니다! 낮 토론을 진행해주세요.' });
@@ -271,6 +273,7 @@ io.on('connection', (socket) => {
   socket.on('resolve_night', () => {
     clearFakeTimers();
     currentPhase = 'DAY';
+    hasExecutedToday = false;
 
     const mafias = players.filter(p => p.isAlive && p.isConnected && p.role === 'mafia');
     const votes = Object.values(nightActions.mafiaVotes);
@@ -307,11 +310,17 @@ io.on('connection', (socket) => {
     io.emit('phase_change', { phase: 'DAY', resultMsg });
   });
 
-  // 처형 처리 (마피아 vs 시민 진영 구분으로만 표기)
+  // 처형 처리 (낮 동안 1회 제한)
   socket.on('kill_player', (playerId) => {
+    if (currentPhase !== 'DAY') return;
+    if (hasExecutedToday) {
+      return socket.emit('execution_error', '이번 낮에는 이미 처형을 진행했습니다.');
+    }
+
     const p = players.find(item => item.id === playerId);
     if (p && p.isAlive) {
       p.isAlive = false;
+      hasExecutedToday = true;
       
       const sideName = (p.role === 'mafia') ? '🔴 마피아' : '⚪ 시민';
       const hostMsg = `투표 결과로 ${p.nickname}님이 처형되었습니다. (${p.nickname}의 진영: ${sideName})`;
@@ -331,6 +340,7 @@ io.on('connection', (socket) => {
     players = [];
     isAssigned = false;
     currentPhase = 'WAITING';
+    hasExecutedToday = false;
     resetNightActions();
     
     io.emit('roles_reset');
