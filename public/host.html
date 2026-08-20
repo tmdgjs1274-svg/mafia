@@ -33,9 +33,11 @@
       </div>
 
       <div>
-        <div class="flex justify-between text-xs mb-2">
-          <span class="text-zinc-400 font-medium">플레이어 상태</span>
-          <span class="text-zinc-400"><b id="player-count" class="text-emerald-400">0</b> 명</span>
+        <div class="flex justify-between items-center text-xs mb-2">
+          <span class="text-zinc-400 font-medium">참가자 목록 (<b id="player-count" class="text-emerald-400">0</b>명)</span>
+          <button id="toggle-role-btn" onclick="toggleRoleVisibility()" class="px-2 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-[10px] font-bold rounded transition">
+            👁️ 직업 보기
+          </button>
         </div>
         <div id="player-list" class="space-y-1.5 overflow-y-auto max-h-64 border border-zinc-800/80 rounded-xl p-2 bg-zinc-950/50 text-xs"></div>
       </div>
@@ -106,7 +108,7 @@
           </div>
         </div>
 
-        <!-- 실시간 능력 완료 현황 -->
+        <!-- 밤 능력 현황판 -->
         <div id="night-status-card" class="hidden bg-indigo-950/40 p-3 rounded-xl border border-indigo-800/60 space-y-2">
           <div class="text-xs font-bold text-indigo-300">🌙 밤 능력 실시간 완료 현황</div>
           <div class="grid grid-cols-2 gap-2 text-xs">
@@ -158,11 +160,39 @@
     </div>
   </div>
 
+  <!-- 재접속 승인 모달 -->
+  <div id="rejoin-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
+    <div class="bg-zinc-900 border border-amber-500/50 p-6 rounded-2xl text-center space-y-4 max-w-sm w-full shadow-2xl">
+      <div class="text-amber-400 text-3xl">⚠️</div>
+      <h3 class="text-base font-bold text-white">재접속 요청 승인</h3>
+      <p id="rejoin-msg" class="text-xs text-zinc-300">
+        퇴장한 플레이어가 재접속을 요청했습니다.
+      </p>
+      <div class="flex gap-2 pt-2">
+        <button onclick="respondRejoin(false)" class="flex-1 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold rounded-lg text-xs">거절</button>
+        <button onclick="respondRejoin(true)" class="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs">승인</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     const socket = io();
     let playersData = [];
     let roles = { mafia: 2, police: 1, doctor: 1, medium: 1, citizen: 3 };
     let currentNightStatus = {};
+    let showRoles = false;
+    let pendingRejoinRequest = null;
+
+    const roleNameMap = {
+      mafia: '🔴 마피아',
+      police: '🔵 경찰',
+      doctor: '🟢 의사',
+      medium: '🟣 영매',
+      citizen: '⚪ 시민'
+    };
+
+    // 호스트 등록
+    socket.emit('register_host');
 
     socket.on('init_state', ({ inviteCode }) => {
       document.getElementById('invite-code').innerText = inviteCode;
@@ -175,19 +205,68 @@
     socket.on('update_players', ({ players }) => {
       playersData = players;
       document.getElementById('player-count').innerText = players.length;
-      document.getElementById('player-list').innerHTML = players.map(p => `
-        <div class="flex justify-between items-center p-2 bg-zinc-900 rounded-lg border border-zinc-800">
-          <span class="font-medium ${p.isAlive ? 'text-white' : 'text-zinc-600 line-through'}">${p.nickname}</span>
-          <span class="text-[10px] font-semibold ${p.isAlive ? 'text-emerald-400' : 'text-red-500'}">
-            ${p.isAlive ? '생존' : '사망'}
-          </span>
-        </div>
-      `).join('');
-
+      renderPlayerList();
       updateVoteDropdown();
       updateTotal();
       checkWinCondition();
     });
+
+    // 재접속 요청 수신 시 모달 표시
+    socket.on('rejoin_request', (data) => {
+      pendingRejoinRequest = data;
+      document.getElementById('rejoin-msg').innerHTML = `<b class="text-emerald-400">${data.nickname}</b> 님이 재접속을 요청했습니다.<br>승인하면 기존 직업과 상태로 복귀합니다.`;
+      document.getElementById('rejoin-modal').classList.remove('hidden');
+    });
+
+    function respondRejoin(approved) {
+      if (pendingRejoinRequest) {
+        socket.emit('rejoin_response', {
+          requestSocketId: pendingRejoinRequest.requestSocketId,
+          nickname: pendingRejoinRequest.nickname,
+          approved
+        });
+        pendingRejoinRequest = null;
+      }
+      document.getElementById('rejoin-modal').classList.add('hidden');
+    }
+
+    function toggleRoleVisibility() {
+      showRoles = !showRoles;
+      const btn = document.getElementById('toggle-role-btn');
+      btn.innerText = showRoles ? '🙈 직업 숨기기' : '👁️ 직업 보기';
+      renderPlayerList();
+    }
+
+    function renderPlayerList() {
+      document.getElementById('player-list').innerHTML = playersData.map(p => {
+        let nameColor = 'text-white';
+        let statusText = '생존';
+        let statusColor = 'text-emerald-400';
+
+        if (!p.isConnected) {
+          nameColor = 'text-zinc-500 line-through';
+          statusText = '나감';
+          statusColor = 'text-zinc-500';
+        } else if (!p.isAlive) {
+          nameColor = 'text-zinc-500 line-through';
+          statusText = '사망';
+          statusColor = 'text-red-500';
+        }
+
+        const roleBadge = (showRoles && p.role) ? `<span class="text-[10px] text-zinc-400 ml-1">(${roleNameMap[p.role] || p.role})</span>` : '';
+
+        return `
+          <div class="flex justify-between items-center p-2 bg-zinc-950 rounded-lg border border-zinc-800">
+            <span class="font-medium ${nameColor}">
+              ${p.nickname}${roleBadge}
+            </span>
+            <span class="text-[10px] font-semibold ${statusColor}">
+              ${statusText}
+            </span>
+          </div>
+        `;
+      }).join('');
+    }
 
     socket.on('night_status_update', (st) => {
       currentNightStatus = st;
@@ -224,7 +303,7 @@
     function updateVoteDropdown() {
       const select = document.getElementById('vote-target');
       if (!select) return;
-      const alive = playersData.filter(p => p.isAlive);
+      const alive = playersData.filter(p => p.isAlive && p.isConnected);
       select.innerHTML = '<option value="">처형 대상 선택</option>' + alive.map(p => `<option value="${p.id}">${p.nickname}</option>`).join('');
     }
 
@@ -287,7 +366,7 @@
 
     function checkWinCondition() {
       if (playersData.length === 0) return;
-      const alive = playersData.filter(p => p.isAlive && p.role);
+      const alive = playersData.filter(p => p.isAlive && p.isConnected && p.role);
       if (alive.length === 0) return;
 
       const mafias = alive.filter(p => p.role === 'mafia').length;
