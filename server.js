@@ -66,11 +66,31 @@ function getRandomDelay() {
   return Math.floor(Math.random() * 5000) + 5000;
 }
 
+// 승리 조건 검사 공통 함수
+function checkWinCondition() {
+  if (!isAssigned) return null;
+
+  const alivePlayers = players.filter(p => p.role && p.isAlive && p.isConnected);
+  const totalAssignedMafias = players.filter(p => p.role === 'mafia').length;
+
+  if (totalAssignedMafias === 0) return null;
+
+  const aliveMafias = alivePlayers.filter(p => p.role === 'mafia').length;
+  const aliveCitizens = alivePlayers.length - aliveMafias;
+
+  if (aliveMafias === 0) {
+    return 'CITIZEN';
+  } else if (aliveMafias >= aliveCitizens) {
+    return 'MAFIA';
+  }
+
+  return null;
+}
+
 function broadcastNightStatus() {
   const alivePlayers = players.filter(p => p.isAlive && p.isConnected);
   const mafias = alivePlayers.filter(p => p.role === 'mafia');
   
-  // 생존한 마피아 전원이 선택을 마치고, 동의까지 마쳤는지 확인
   const allMafiaConfirmed = mafias.length === 0 || (
     mafias.every(m => nightActions.mafiaVotes[m.id]?.confirmed)
   );
@@ -220,17 +240,14 @@ io.on('connection', (socket) => {
     }
   });
 
-  // [수정] 마피아 실시간 선택 표기 및 전원 일치 시 확정 처리
   socket.on('mafia_vote', ({ targetId, confirmed }) => {
     const mafias = players.filter(p => p.isAlive && p.isConnected && p.role === 'mafia');
 
-    // 마피아 현황 기록
     nightActions.mafiaVotes[socket.id] = { 
       targetId, 
       confirmed: !!confirmed 
     };
 
-    // 실시간 현황 브로드캐스트용 데이터 생성
     const statusData = {};
     mafias.forEach(m => {
       const vote = nightActions.mafiaVotes[m.id];
@@ -242,7 +259,6 @@ io.on('connection', (socket) => {
       };
     });
 
-    // 모든 마피아에게 실시간 표기 정보 전달
     mafias.forEach(m => {
       io.to(m.id).emit('mafia_vote_update', { statusData });
     });
@@ -267,7 +283,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // [수정] 영매 결과 한글 직업 표시
   socket.on('medium_investigate', ({ targetId }) => {
     const target = players.find(p => p.id === targetId);
     if (target) {
@@ -318,7 +333,14 @@ io.on('connection', (socket) => {
     }
 
     io.emit('update_players', { players, isAssigned });
-    io.emit('phase_change', { phase: 'DAY', resultMsg });
+    
+    // 밤 처리 후 승리 조건 검사
+    const winner = checkWinCondition();
+    if (winner) {
+      io.emit('game_over', { winner });
+    } else {
+      io.emit('phase_change', { phase: 'DAY', resultMsg });
+    }
   });
 
   socket.on('kill_player', (playerId) => {
@@ -339,16 +361,22 @@ io.on('connection', (socket) => {
       io.to(p.id).emit('player_died');
       io.emit('update_players', { players, isAssigned });
 
+      // 낮 처형 후 승리 조건 검사
+      const winner = checkWinCondition();
+
       if (hostSocketId) {
         io.to(hostSocketId).emit('phase_change', { phase: 'DAY', resultMsg: hostMsg });
         io.to(hostSocketId).emit('execution_success');
       }
 
       socket.broadcast.emit('phase_change', { phase: 'DAY' });
+
+      if (winner) {
+        io.emit('game_over', { winner });
+      }
     }
   });
 
-  // [수정] 게임 리셋 시 접속 중인 참가자는 끊지 않고 역할만 초기화
   socket.on('reset_roles', () => {
     players.forEach(p => {
       p.role = null;
@@ -371,6 +399,11 @@ io.on('connection', (socket) => {
     if (p) {
       p.isConnected = false;
       io.emit('update_players', { players, isAssigned });
+
+      const winner = checkWinCondition();
+      if (winner) {
+        io.emit('game_over', { winner });
+      }
     }
   });
 });
