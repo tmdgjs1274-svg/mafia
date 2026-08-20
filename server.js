@@ -18,7 +18,7 @@ let inviteCode = Math.random().toString(36).substring(2, 6).toUpperCase();
 let isAssigned = false;
 let currentPhase = 'WAITING';
 let hostSocketId = null;
-let hasExecutedToday = false; // 오늘 낮 처형 여부 플래그
+let hasExecutedToday = false;
 
 let nightActions = {
   mafiaVotes: {},
@@ -31,6 +31,14 @@ let nightActions = {
 };
 
 let fakeTimers = [];
+
+const roleNameMap = {
+  mafia: '마피아',
+  police: '경찰',
+  doctor: '의사',
+  medium: '영매',
+  citizen: '시민'
+};
 
 function shuffle(array) {
   return array.sort(() => Math.random() - 0.5);
@@ -60,9 +68,12 @@ function getRandomDelay() {
 
 function broadcastNightStatus() {
   const alivePlayers = players.filter(p => p.isAlive && p.isConnected);
-  
   const mafias = alivePlayers.filter(p => p.role === 'mafia');
-  const allMafiaConfirmed = mafias.length === 0 || mafias.every(m => nightActions.mafiaVotes[m.id]?.confirmed);
+  
+  // 생존한 마피아 전원이 선택을 마치고, 동의까지 마쳤는지 확인
+  const allMafiaConfirmed = mafias.length === 0 || (
+    mafias.every(m => nightActions.mafiaVotes[m.id]?.confirmed)
+  );
 
   io.emit('night_status_update', {
     mafiaConfirmed: allMafiaConfirmed,
@@ -162,7 +173,7 @@ io.on('connection', (socket) => {
 
     isAssigned = true;
     currentPhase = 'DAY';
-    hasExecutedToday = false; // 첫 낮 처형 초기화
+    hasExecutedToday = false;
     resetNightActions();
     io.emit('update_players', { players, isAssigned });
     io.emit('phase_change', { phase: 'DAY', msg: '게임이 시작되었습니다! 낮 토론을 진행해주세요.' });
@@ -209,33 +220,29 @@ io.on('connection', (socket) => {
     }
   });
 
+  // [수정] 마피아 실시간 선택 표기 및 전원 일치 시 확정 처리
   socket.on('mafia_vote', ({ targetId, confirmed }) => {
     const mafias = players.filter(p => p.isAlive && p.isConnected && p.role === 'mafia');
 
-    if (confirmed) {
-      const currentVotes = { ...nightActions.mafiaVotes, [socket.id]: { targetId, confirmed: true } };
-      const targets = mafias.map(m => currentVotes[m.id]?.targetId).filter(Boolean);
+    // 마피아 현황 기록
+    nightActions.mafiaVotes[socket.id] = { 
+      targetId, 
+      confirmed: !!confirmed 
+    };
 
-      const isAllSelected = targets.length === mafias.length;
-      const isUnanimous = isAllSelected && targets.every(t => t === targetId);
-
-      if (!isUnanimous) {
-        return socket.emit('mafia_vote_error', '모든 마피아가 동일한 대상을 지목해야 확정할 수 있습니다.');
-      }
-    }
-
-    nightActions.mafiaVotes[socket.id] = { targetId, confirmed };
-
+    // 실시간 현황 브로드캐스트용 데이터 생성
     const statusData = {};
     mafias.forEach(m => {
       const vote = nightActions.mafiaVotes[m.id];
       const targetPlayer = players.find(p => p.id === vote?.targetId);
       statusData[m.nickname] = {
-        targetName: targetPlayer ? targetPlayer.nickname : '미선택',
+        targetId: vote?.targetId || null,
+        targetName: targetPlayer ? targetPlayer.nickname : '선택 중...',
         confirmed: !!vote?.confirmed
       };
     });
 
+    // 모든 마피아에게 실시간 표기 정보 전달
     mafias.forEach(m => {
       io.to(m.id).emit('mafia_vote_update', { statusData });
     });
@@ -260,12 +267,14 @@ io.on('connection', (socket) => {
     }
   });
 
+  // [수정] 영매 결과 한글 직업 표시
   socket.on('medium_investigate', ({ targetId }) => {
     const target = players.find(p => p.id === targetId);
     if (target) {
       nightActions.mediumTarget = targetId;
       nightActions.mediumConfirmed = true;
-      socket.emit('medium_result', { targetName: target.nickname, role: target.role });
+      const koreanRole = roleNameMap[target.role] || target.role;
+      socket.emit('medium_result', { targetName: target.nickname, role: koreanRole });
       broadcastNightStatus();
     }
   });
@@ -273,19 +282,21 @@ io.on('connection', (socket) => {
   socket.on('resolve_night', () => {
     clearFakeTimers();
     currentPhase = 'DAY';
-    hasExecutedToday = false; // 새로운 낮이 되었으므로 처형 기회 초기화
+    hasExecutedToday = false;
 
     const mafias = players.filter(p => p.isAlive && p.isConnected && p.role === 'mafia');
-    const votes = Object.values(nightActions.mafiaVotes);
     
     let mafiaTargetId = null;
-    if (mafias.length > 0 && votes.length === mafias.length) {
-      const allConfirmed = votes.every(v => v.confirmed);
-      const firstTarget = votes[0]?.targetId;
-      const isUnanimous = votes.every(v => v.targetId === firstTarget);
+    if (mafias.length > 0) {
+      const votes = mafias.map(m => nightActions.mafiaVotes[m.id]).filter(Boolean);
+      if (votes.length === mafias.length) {
+        const allConfirmed = votes.every(v => v.confirmed);
+        const firstTarget = votes[0]?.targetId;
+        const isUnanimous = votes.every(v => v.targetId === firstTarget);
 
-      if (allConfirmed && isUnanimous) {
-        mafiaTargetId = firstTarget;
+        if (allConfirmed && isUnanimous) {
+          mafiaTargetId = firstTarget;
+        }
       }
     }
 
@@ -310,7 +321,6 @@ io.on('connection', (socket) => {
     io.emit('phase_change', { phase: 'DAY', resultMsg });
   });
 
-  // 처형 처리 (낮 동안 1회 제한 및 진영 단위 공개)
   socket.on('kill_player', (playerId) => {
     if (currentPhase !== 'DAY') return;
 
@@ -321,7 +331,7 @@ io.on('connection', (socket) => {
     const p = players.find(item => item.id === playerId);
     if (p && p.isAlive) {
       p.isAlive = false;
-      hasExecutedToday = true; // 처형 완료 처리
+      hasExecutedToday = true;
       
       const sideName = (p.role === 'mafia') ? '🔴 마피아' : '⚪ 시민';
       const hostMsg = `투표 결과로 ${p.nickname}님이 처형되었습니다. (${p.nickname}의 진영: ${sideName})`;
@@ -331,7 +341,6 @@ io.on('connection', (socket) => {
 
       if (hostSocketId) {
         io.to(hostSocketId).emit('phase_change', { phase: 'DAY', resultMsg: hostMsg });
-        // 처형 성공 신호 전송 (버튼 비활성화를 위해)
         io.to(hostSocketId).emit('execution_success');
       }
 
@@ -339,8 +348,12 @@ io.on('connection', (socket) => {
     }
   });
 
+  // [수정] 게임 리셋 시 접속 중인 참가자는 끊지 않고 역할만 초기화
   socket.on('reset_roles', () => {
-    players = [];
+    players.forEach(p => {
+      p.role = null;
+      p.isAlive = true;
+    });
     isAssigned = false;
     currentPhase = 'WAITING';
     hasExecutedToday = false;
