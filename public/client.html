@@ -3,118 +3,220 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>마피아 역할 확인 - 참가자</title>
+  <title>마피아 플레이어 스마트폰</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="/socket.io/socket.io.js"></script>
 </head>
 <body class="bg-zinc-950 text-white min-h-screen flex items-center justify-center p-4">
-  <div class="w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-2xl space-y-5 text-center">
+  <div class="w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-2xl p-5 shadow-2xl space-y-4">
     
     <!-- 입장 카드 -->
     <div id="login-screen" class="space-y-4">
-      <h2 class="text-xl font-bold">마피아 게임 입장</h2>
-      
-      <div class="space-y-2 text-left">
-        <div>
-          <label class="text-xs text-zinc-400 mb-1 block">초대 코드</label>
-          <input type="text" id="code-input" placeholder="초대코드 4자리" class="w-full p-3 bg-zinc-950 border border-zinc-800 rounded-xl text-center text-sm uppercase tracking-widest font-bold">
-        </div>
-        <div>
-          <label class="text-xs text-zinc-400 mb-1 block">닉네임</label>
-          <input type="text" id="nickname-input" placeholder="사용할 닉네임" class="w-full p-3 bg-zinc-950 border border-zinc-800 rounded-xl text-center text-sm">
-        </div>
+      <h2 class="text-xl font-bold text-center">게임 입장</h2>
+      <div class="space-y-2">
+        <input type="text" id="code-input" placeholder="초대코드 4자리" class="w-full p-3 bg-zinc-950 border border-zinc-800 rounded-xl text-center text-sm uppercase font-bold">
+        <input type="text" id="nickname-input" placeholder="닉네임 입력" class="w-full p-3 bg-zinc-950 border border-zinc-800 rounded-xl text-center text-sm">
       </div>
-
-      <button onclick="joinGame()" class="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 font-bold rounded-xl shadow-lg transition">대기실 입장</button>
+      <button onclick="joinGame()" class="w-full py-3.5 bg-emerald-600 font-bold rounded-xl text-sm">대기실 입장</button>
     </div>
 
-    <!-- 역할 및 상태 확인 카드 -->
-    <div id="game-screen" class="hidden space-y-5 py-2">
-      <div class="text-xs border-b border-zinc-800 pb-3 flex justify-between items-center">
-        <span class="text-zinc-400">플레이어</span>
-        <span id="my-name" class="font-bold text-white text-sm"></span>
+    <!-- 플레이어 메인 카드 -->
+    <div id="game-screen" class="hidden space-y-4">
+      <div class="flex justify-between items-center border-b border-zinc-800 pb-2 text-xs">
+        <span class="text-zinc-400">내 닉네임: <b id="my-name" class="text-white"></b></span>
+        <span id="phase-tag" class="px-2 py-0.5 bg-zinc-800 rounded text-zinc-300 font-bold">대기 중</span>
       </div>
 
-      <div class="space-y-3">
-        <div class="text-xs text-zinc-500 font-semibold">당신의 역할</div>
+      <!-- 내 직업 카드 -->
+      <div class="p-4 bg-zinc-950 border border-zinc-800 rounded-xl text-center space-y-1">
+        <div class="text-[10px] text-zinc-500 font-bold uppercase">MY ROLE</div>
+        <div id="my-role" class="text-2xl font-black text-zinc-600">대기 중...</div>
+        <div id="mafia-partners" class="text-xs text-red-400 font-semibold hidden"></div>
+      </div>
+
+      <!-- 사망 표시 -->
+      <div id="death-banner" class="hidden p-3 bg-red-950/80 border border-red-800 rounded-xl text-red-200 text-xs font-bold text-center">
+        💀 사망하셨습니다. (관전 모드)
+      </div>
+
+      <!-- 밤 액션 전용 카드 (직업에 따라 내용 자동 변경) -->
+      <div id="night-action-box" class="hidden p-4 bg-indigo-950/40 border border-indigo-800/60 rounded-xl space-y-3">
+        <h3 class="text-xs font-bold text-indigo-300 uppercase tracking-wider">🌙 밤의 특수 능력</h3>
         
-        <div id="role-box" class="p-5 bg-zinc-950 border border-zinc-800 rounded-2xl space-y-3">
-          <div id="my-role" class="text-3xl font-black text-zinc-600">대기 중...</div>
-          <p id="my-role-desc" class="text-xs text-zinc-400 leading-relaxed break-keep hidden"></p>
+        <div id="action-content" class="space-y-2">
+          <!-- 동적 렌더링 -->
         </div>
       </div>
 
-      <!-- 사망 안내 레이어 -->
-      <div id="death-banner" class="hidden p-3 bg-red-950/60 border border-red-800 rounded-xl text-red-300 text-xs font-bold animate-pulse">
-        💀 사망하셨습니다. 발언권이 없으며 관전 모드입니다.
+      <!-- 상태 메세지 -->
+      <div id="status-msg" class="text-xs text-center text-zinc-400">
+        화면의 안내 및 전체 보드의 상태를 확인하세요.
       </div>
-
-      <p id="status-msg" class="text-xs text-zinc-500">사회자(호스트)의 진행 안내에 따라주세요.</p>
     </div>
 
   </div>
 
   <script>
     const socket = io();
-
-    const roleDetails = {
-      mafia: { name: '🔴 마피아', desc: '밤마다 시민 한 명을 지목해 제거합니다. 낮에는 시민인 척 숨어 살아남는 것이 목표입니다.' },
-      citizen: { name: '⚪ 시민', desc: '특별한 능력이 없습니다. 토론과 투표를 통해 마피아를 찾아내야 합니다.' },
-      police: { name: '🔵 경찰', desc: '밤마다 플레이어 한 명을 지목해 마피아인지 조사합니다.' },
-      doctor: { name: '🟢 의사', desc: '밤마다 자신을 포함해 한 명을 마피아의 공격으로부터 보호합니다.' },
-      medium: { name: '🟣 영매', desc: '밤에 죽은 사람이 남긴 메시지나 죽은 이의 정체를 알 수 있습니다.' }
-    };
+    let myRole = null;
+    let isAlive = true;
+    let playersData = [];
 
     window.onload = () => {
-      const urlParams = new URLSearchParams(window.location.search);
-      const codeParam = urlParams.get('code');
-      if (codeParam) {
-        document.getElementById('code-input').value = codeParam.toUpperCase();
-      }
+      const codeParam = new URLSearchParams(window.location.search).get('code');
+      if (codeParam) document.getElementById('code-input').value = codeParam.toUpperCase();
     };
 
     function joinGame() {
       const code = document.getElementById('code-input').value.trim().toUpperCase();
       const nickname = document.getElementById('nickname-input').value.trim();
-
-      if (!code) return alert('초대 코드를 입력하세요.');
-      if (!nickname) return alert('닉네임을 입력하세요.');
-
+      if (!code || !nickname) return alert('모든 항목을 입력해 주세요.');
       socket.emit('join_game', { nickname, code });
     }
 
-    socket.on('join_error', (msg) => { alert(msg); });
-
+    socket.on('join_error', (msg) => alert(msg));
     socket.on('join_success', () => {
       document.getElementById('login-screen').classList.add('hidden');
       document.getElementById('game-screen').classList.remove('hidden');
       document.getElementById('my-name').innerText = document.getElementById('nickname-input').value.trim();
     });
 
-    socket.on('your_role', ({ role }) => {
-      const roleEl = document.getElementById('my-role');
-      const descEl = document.getElementById('my-role-desc');
-      const info = roleDetails[role] || { name: role, desc: '' };
+    socket.on('update_players', ({ players }) => { playersData = players; });
 
-      roleEl.innerText = info.name;
-      roleEl.className = "text-3xl font-black text-amber-400";
-      descEl.innerText = info.desc;
-      descEl.classList.remove('hidden');
-      document.getElementById('death-banner').classList.add('hidden');
+    socket.on('your_role', ({ role, isAlive: alive, mafiaPartners }) => {
+      myRole = role;
+      isAlive = alive;
+      
+      const roleNames = { mafia: '🔴 마피아', police: '🔵 경찰', doctor: '🟢 의사', medium: '🟣 영매', citizen: '⚪ 시민' };
+      document.getElementById('my-role').innerText = roleNames[role] || role;
+
+      if (role === 'mafia' && mafiaPartners.length > 0) {
+        const partnerBox = document.getElementById('mafia-partners');
+        partnerBox.innerText = `팀원: ${mafiaPartners.join(', ')}`;
+        partnerBox.classList.remove('hidden');
+      }
     });
 
+    socket.on('phase_change', ({ phase, msg, resultMsg }) => {
+      const tag = document.getElementById('phase-tag');
+      const actionBox = document.getElementById('night-action-box');
+
+      if (phase === 'NIGHT') {
+        tag.innerText = "🌙 밤";
+        tag.className = "px-2 py-0.5 bg-indigo-500/20 text-indigo-400 font-bold rounded";
+        if (isAlive) renderNightAction();
+      } else {
+        tag.innerText = "☀️ 낮";
+        tag.className = "px-2 py-0.5 bg-amber-500/20 text-amber-400 font-bold rounded";
+        actionBox.classList.add('hidden');
+        if (resultMsg) alert(`[아침 결과]\n${resultMsg}`);
+      }
+    });
+
+    // 밤 능력 UI 구성
+    function renderNightAction() {
+      const box = document.getElementById('night-action-box');
+      const content = document.getElementById('action-content');
+      const alivePlayers = playersData.filter(p => p.isAlive);
+      const deadPlayers = playersData.filter(p => !p.isAlive);
+
+      box.classList.remove('hidden');
+
+      if (myRole === 'mafia') {
+        const options = alivePlayers.map(p => `<option value="${p.id}">${p.nickname}</option>`).join('');
+        content.innerHTML = `
+          <p class="text-xs text-zinc-300">살해할 대상을 마피아 팀원들과 투표하세요.</p>
+          <select id="mafia-select" onchange="voteMafia()" class="w-full p-2 bg-zinc-950 border border-zinc-800 rounded text-xs">
+            <option value="">대상 선택</option>
+            ${options}
+          </select>
+          <div id="mafia-status" class="text-[11px] text-amber-400 font-semibold"></div>
+        `;
+      } else if (myRole === 'doctor') {
+        const options = alivePlayers.map(p => `<option value="${p.id}">${p.nickname}</option>`).join('');
+        content.innerHTML = `
+          <p class="text-xs text-zinc-300">살릴 의사 보호 대상을 지목하세요.</p>
+          <select id="doc-select" class="w-full p-2 bg-zinc-950 border border-zinc-800 rounded text-xs">
+            <option value="">대상 선택</option>
+            ${options}
+          </select>
+          <button onclick="selectDoctor()" class="w-full py-2 bg-emerald-600 font-bold rounded text-xs">보호 확정</button>
+        `;
+      } else if (myRole === 'police') {
+        const options = alivePlayers.map(p => `<option value="${p.id}">${p.nickname}</option>`).join('');
+        content.innerHTML = `
+          <p class="text-xs text-zinc-300">정체를 조사할 대상을 고르세요.</p>
+          <select id="police-select" class="w-full p-2 bg-zinc-950 border border-zinc-800 rounded text-xs">
+            <option value="">대상 선택</option>
+            ${options}
+          </select>
+          <button onclick="checkPolice()" class="w-full py-2 bg-blue-600 font-bold rounded text-xs">조사하기</button>
+        `;
+      } else if (myRole === 'medium') {
+        const options = deadPlayers.map(p => `<option value="${p.id}">${p.nickname}</option>`).join('');
+        content.innerHTML = `
+          <p class="text-xs text-zinc-300">조사할 사망자를 선택하세요.</p>
+          <select id="medium-select" class="w-full p-2 bg-zinc-950 border border-zinc-800 rounded text-xs">
+            <option value="">사망자 선택</option>
+            ${options}
+          </select>
+          <button onclick="checkMedium()" class="w-full py-2 bg-purple-600 font-bold rounded text-xs">영혼의 직업 확인</button>
+        `;
+      } else {
+        content.innerHTML = `<p class="text-xs text-zinc-400 text-center py-2">시민은 밤에 능력이 없습니다. 조용히 대기해주세요.</p>`;
+      }
+    }
+
+    // 마피아 투표
+    function voteMafia() {
+      const targetId = document.getElementById('mafia-select').value;
+      if (targetId) socket.emit('mafia_vote', { targetId });
+    }
+
+    socket.on('mafia_vote_update', ({ votes, totalMafias }) => {
+      const count = Object.keys(votes).length;
+      document.getElementById('mafia-status').innerText = `현재 투표 완료: ${count} / ${totalMafias} 명`;
+    });
+
+    // 의사 선택
+    function selectDoctor() {
+      const targetId = document.getElementById('doc-select').value;
+      if (!targetId) return alert('대상을 선택하세요.');
+      socket.emit('doctor_select', { targetId });
+    }
+
+    // 경찰 결과 수신
+    function checkPolice() {
+      const targetId = document.getElementById('police-select').value;
+      if (!targetId) return alert('대상을 선택하세요.');
+      socket.emit('police_investigate', { targetId });
+    }
+    socket.on('police_result', ({ targetName, isMafia }) => {
+      alert(`[경찰 조사 결과]\n${targetName}님은 ${isMafia ? '🔴 마피아가 맞습니다!' : '마피아가 아닙니다.'}`);
+    });
+
+    // 영매 결과 수신
+    function checkMedium() {
+      const targetId = document.getElementById('medium-select').value;
+      if (!targetId) return alert('사망자를 선택하세요.');
+      socket.emit('medium_investigate', { targetId });
+    }
+    socket.on('medium_result', ({ targetName, role }) => {
+      const roleNames = { mafia: '마피아', police: '경찰', doctor: '의사', medium: '영매', citizen: '시민' };
+      alert(`[영매 영혼 조사]\n사망한 ${targetName}님의 직업은 [${roleNames[role] || role}] 이었습니다.`);
+    });
+
+    socket.on('action_confirmed', (msg) => alert(msg));
     socket.on('player_died', () => {
+      isAlive = false;
       document.getElementById('death-banner').classList.remove('hidden');
+      document.getElementById('night-action-box').classList.add('hidden');
     });
 
     socket.on('roles_reset', () => {
-      const roleEl = document.getElementById('my-role');
-      const descEl = document.getElementById('my-role-desc');
-      roleEl.innerText = "대기 중...";
-      roleEl.className = "text-3xl font-black text-zinc-600";
-      descEl.innerText = "";
-      descEl.classList.add('hidden');
+      document.getElementById('my-role').innerText = "대기 중...";
       document.getElementById('death-banner').classList.add('hidden');
+      document.getElementById('mafia-partners').classList.add('hidden');
     });
   </script>
 </body>
