@@ -42,10 +42,16 @@
       호스트가 게임을 시작할 때까지 잠시 기다려주세요.
     </div>
 
+    <!-- 마피아 전용 실시간 조율 보드 -->
+    <div id="mafia-live-panel" class="hidden bg-red-950/30 border border-red-900/50 p-3 rounded-xl space-y-2 text-left">
+      <div class="text-[11px] font-bold text-red-400">🎯 마피아 실시간 서버 지목 상황</div>
+      <div id="mafia-live-list" class="space-y-1 text-xs"></div>
+    </div>
+
     <!-- 능력 사용 영역 -->
     <div id="action-panel" class="hidden space-y-3 pt-2">
       <div class="text-xs text-indigo-400 font-semibold">대상 플레이어 선택</div>
-      <select id="action-target" class="w-full p-3 bg-zinc-950 border border-zinc-800 rounded-xl text-xs outline-none">
+      <select id="action-target" onchange="onTargetSelectChange()" class="w-full p-3 bg-zinc-950 border border-zinc-800 rounded-xl text-xs outline-none">
       </select>
       <button id="action-btn" onclick="useAbility()" class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 font-bold rounded-xl text-xs transition">능력 사용</button>
     </div>
@@ -60,7 +66,6 @@
     let myNickname = '';
     let isAlive = true;
 
-    // URL 파라미터 자동 입력
     const urlParams = new URLSearchParams(window.location.search);
     const codeParam = urlParams.get('code');
     if (codeParam) {
@@ -96,7 +101,6 @@
       document.getElementById('player-nickname-display').innerText = myNickname;
     });
 
-    // 호스트 승인 대기 안내
     socket.on('rejoin_waiting', (msg) => {
       document.getElementById('join-card').classList.add('hidden');
       document.getElementById('game-card').classList.remove('hidden');
@@ -104,7 +108,6 @@
       document.getElementById('waiting-msg').innerText = msg;
     });
 
-    // 호스트 승인 후 복구 이벤트
     socket.on('rejoin_success', ({ role, isAlive: aliveStatus, currentPhase, mafiaPartners }) => {
       myRole = role;
       isAlive = aliveStatus;
@@ -175,8 +178,55 @@
         }
 
         select.innerHTML = '<option value="">선택하세요</option>' + validTargets.map(p => `<option value="${p.id}">${p.nickname}</option>`).join('');
+
+        if (myRole === 'mafia') {
+          document.getElementById('mafia-live-panel').classList.remove('hidden');
+        }
       } else {
         document.getElementById('waiting-msg').innerText = '밤이 되었습니다. 시민은 조용히 대기하세요.';
+      }
+    });
+
+    // 드롭다운 변경 시 마피아 실시간 후보 전달
+    function onTargetSelectChange() {
+      if (myRole === 'mafia') {
+        const targetId = document.getElementById('action-target').value;
+        if (targetId) {
+          socket.emit('mafia_vote', { targetId, confirmed: false });
+        }
+      }
+    }
+
+    // [추가] 마피아 실시간 동료 지목 현황 업데이트
+    socket.on('mafia_vote_update', ({ statusData }) => {
+      if (myRole !== 'mafia') return;
+
+      const liveList = document.getElementById('mafia-live-list');
+      if (!liveList) return;
+
+      let html = '';
+      const targets = [];
+      let allConfirmed = true;
+
+      for (const name in statusData) {
+        const data = statusData[name];
+        const statusText = data.confirmed ? '<span class="text-emerald-400 font-bold">[확정]</span>' : '<span class="text-amber-400 font-bold">[지목중]</span>';
+        html += `<div class="flex justify-between"><span>${name}: ${data.targetName}</span> <span>${statusText}</span></div>`;
+        
+        if (data.targetId) targets.push(data.targetId);
+        if (!data.confirmed) allConfirmed = false;
+      }
+
+      liveList.innerHTML = html;
+
+      // 같은 대상을 모두 지목 중인지 검사
+      const isUnanimous = targets.length > 0 && targets.every(t => t === targets[0]);
+
+      // 동의하지 않았거나 불일치하면 알려줌
+      if (targets.length > 1 && !isUnanimous) {
+        document.getElementById('mafia-partners').innerText = '⚠️ 동료와 지목 대상이 일치하지 않습니다!';
+      } else {
+        document.getElementById('mafia-partners').innerText = '동료와 동일 대상을 선택 후 능력 사용을 누르세요.';
       }
     });
 
@@ -195,6 +245,7 @@
       }
 
       document.getElementById('action-panel').classList.add('hidden');
+      document.getElementById('mafia-live-panel').classList.add('hidden');
       document.getElementById('waiting-msg').classList.remove('hidden');
       document.getElementById('waiting-msg').innerText = '능력 사용이 확정되었습니다. 밤이 끝날 때까지 대기하세요.';
     }
@@ -205,6 +256,7 @@
       resEl.classList.remove('hidden');
     });
 
+    // [수정] 영매 한글 출력 적용
     socket.on('medium_result', ({ targetName, role }) => {
       const resEl = document.getElementById('ability-result');
       resEl.innerText = `[영매 결과] 사망한 ${targetName}님의 직업은 ${role}이었습니다.`;
@@ -214,6 +266,7 @@
     socket.on('phase_change', ({ phase, msg }) => {
       if (phase === 'DAY') {
         document.getElementById('action-panel').classList.add('hidden');
+        document.getElementById('mafia-live-panel').classList.add('hidden');
         document.getElementById('waiting-msg').classList.remove('hidden');
         document.getElementById('waiting-msg').innerText = msg || '낮이 되었습니다.';
       }
@@ -223,12 +276,22 @@
       isAlive = false;
       document.getElementById('role-title').innerText += ' (사망)';
       document.getElementById('action-panel').classList.add('hidden');
+      document.getElementById('mafia-live-panel').classList.add('hidden');
       document.getElementById('waiting-msg').classList.remove('hidden');
       document.getElementById('waiting-msg').innerText = '당신은 사망했습니다. 관전 모드로 전환됩니다.';
     });
 
+    // [수정] 게임 리셋 시 화면을 대기실 상태로 변경 (페이지 새로고침으로 탈락하지 않음)
     socket.on('roles_reset', () => {
-      location.reload();
+      myRole = null;
+      isAlive = true;
+      document.getElementById('role-title').innerText = '대기 중...';
+      document.getElementById('mafia-partners').classList.add('hidden');
+      document.getElementById('action-panel').classList.add('hidden');
+      document.getElementById('mafia-live-panel').classList.add('hidden');
+      document.getElementById('ability-result').classList.add('hidden');
+      document.getElementById('waiting-msg').classList.remove('hidden');
+      document.getElementById('waiting-msg').innerText = '호스트가 게임을 리셋했습니다. 새 게임이 시작될 때까지 대기하세요.';
     });
   </script>
 </body>
