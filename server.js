@@ -28,11 +28,20 @@ let nightActions = {
   mediumConfirmed: false
 };
 
+// 가짜 지연 타이머 관리를 위한 변수
+let fakeTimers = [];
+
 function shuffle(array) {
   return array.sort(() => Math.random() - 0.5);
 }
 
+function clearFakeTimers() {
+  fakeTimers.forEach(timer => clearTimeout(timer));
+  fakeTimers = [];
+}
+
 function resetNightActions() {
+  clearFakeTimers();
   nightActions = {
     mafiaVotes: {},
     doctorTarget: null,
@@ -44,31 +53,22 @@ function resetNightActions() {
   };
 }
 
+// 5초 ~ 10초 사이의 랜덤 밀리초 반환 함수
+function getRandomDelay() {
+  return Math.floor(Math.random() * 5000) + 5000;
+}
+
 function broadcastNightStatus() {
   const alivePlayers = players.filter(p => p.isAlive);
   
   const mafias = alivePlayers.filter(p => p.role === 'mafia');
-  const allMafiaConfirmed = mafias.length > 0 && mafias.every(m => nightActions.mafiaVotes[m.id]?.confirmed);
-
-  const doc = alivePlayers.find(p => p.role === 'doctor');
-  const docConfirmed = !doc || nightActions.doctorConfirmed;
-
-  const pol = alivePlayers.find(p => p.role === 'police');
-  const polConfirmed = !pol || nightActions.policeConfirmed;
-
-  const med = alivePlayers.find(p => p.role === 'medium');
-  const deadCount = players.filter(p => !p.isAlive).length;
-  const medConfirmed = !med || deadCount === 0 || nightActions.mediumConfirmed;
+  const allMafiaConfirmed = mafias.length === 0 || mafias.every(m => nightActions.mafiaVotes[m.id]?.confirmed);
 
   io.emit('night_status_update', {
-    hasMafia: mafias.length > 0,
     mafiaConfirmed: allMafiaConfirmed,
-    hasDoctor: !!doc,
-    doctorConfirmed: docConfirmed,
-    hasPolice: !!pol,
-    policeConfirmed: polConfirmed,
-    hasMedium: !!med,
-    mediumConfirmed: medConfirmed
+    doctorConfirmed: nightActions.doctorConfirmed,
+    policeConfirmed: nightActions.policeConfirmed,
+    mediumConfirmed: nightActions.mediumConfirmed
   });
 }
 
@@ -120,21 +120,51 @@ io.on('connection', (socket) => {
   socket.on('start_night', () => {
     currentPhase = 'NIGHT';
     resetNightActions();
-    
+
+    const alivePlayers = players.filter(p => p.isAlive);
     const deadCount = players.filter(p => !p.isAlive).length;
-    if (deadCount === 0) nightActions.mediumConfirmed = true;
+
+    const doc = alivePlayers.find(p => p.role === 'doctor');
+    const pol = alivePlayers.find(p => p.role === 'police');
+    const med = alivePlayers.find(p => p.role === 'medium');
 
     io.emit('phase_change', { phase: 'NIGHT', msg: '밤이 되었습니다. 각 참가자는 능력을 사용하세요.' });
     io.emit('night_started', { players });
+    
     broadcastNightStatus();
+
+    // 의사가 없거나 사망한 경우 5~10초 후 완료 처리
+    if (!doc) {
+      const timer = setTimeout(() => {
+        nightActions.doctorConfirmed = true;
+        broadcastNightStatus();
+      }, getRandomDelay());
+      fakeTimers.push(timer);
+    }
+
+    // 경찰이 없거나 사망한 경우 5~10초 후 완료 처리
+    if (!pol) {
+      const timer = setTimeout(() => {
+        nightActions.policeConfirmed = true;
+        broadcastNightStatus();
+      }, getRandomDelay());
+      fakeTimers.push(timer);
+    }
+
+    // 영매가 없거나 사망했거나, 사망자가 없는 경우 5~10초 후 완료 처리
+    if (!med || deadCount === 0) {
+      const timer = setTimeout(() => {
+        nightActions.mediumConfirmed = true;
+        broadcastNightStatus();
+      }, getRandomDelay());
+      fakeTimers.push(timer);
+    }
   });
 
-  // [마피아] 지목 및 확정 처리 (만장일치 검증 로직 포함)
   socket.on('mafia_vote', ({ targetId, confirmed }) => {
     const mafias = players.filter(p => p.isAlive && p.role === 'mafia');
 
     if (confirmed) {
-      // 확정하려는 순간 만장일치 여부 체크
       const currentVotes = { ...nightActions.mafiaVotes, [socket.id]: { targetId, confirmed: true } };
       const targets = mafias.map(m => currentVotes[m.id]?.targetId).filter(Boolean);
 
@@ -193,6 +223,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('resolve_night', () => {
+    clearFakeTimers();
     currentPhase = 'DAY';
 
     const mafias = players.filter(p => p.isAlive && p.role === 'mafia');
