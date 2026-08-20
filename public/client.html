@@ -6,7 +6,11 @@
   <title>마피아 게임 - 참가자</title>
   <script src="/socket.io/socket.io.js"></script>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
     body {
       background-color: #121212;
       color: #ffffff;
@@ -25,7 +29,12 @@
       border-radius: 12px;
       box-shadow: 0 4px 15px rgba(0,0,0,0.5);
     }
-    h1 { text-align: center; margin-bottom: 15px; color: #f39c12; font-size: 22px; }
+    h1 {
+      text-align: center;
+      margin-bottom: 15px;
+      color: #f39c12;
+      font-size: 22px;
+    }
     
     .join-form {
       display: flex;
@@ -51,8 +60,13 @@
       color: white;
       transition: background 0.2s;
     }
-    button:disabled { opacity: 0.5; cursor: not-allowed; }
-    button:hover:not(:disabled) { background: #2980b9; }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    button:hover:not(:disabled) {
+      background: #2980b9;
+    }
 
     .role-card {
       background: #2a2a2a;
@@ -62,9 +76,21 @@
       text-align: center;
       margin-bottom: 15px;
     }
-    .role-title { font-size: 14px; color: #aaa; margin-bottom: 5px; }
-    .role-name { font-size: 24px; font-weight: bold; color: #f39c12; }
-    .mafia-partners { font-size: 13px; color: #e74c3c; margin-top: 5px; }
+    .role-title {
+      font-size: 14px;
+      color: #aaa;
+      margin-bottom: 5px;
+    }
+    .role-name {
+      font-size: 24px;
+      font-weight: bold;
+      color: #f39c12;
+    }
+    .mafia-partners {
+      font-size: 13px;
+      color: #e74c3c;
+      margin-top: 5px;
+    }
 
     .status-box {
       background: #000;
@@ -82,7 +108,12 @@
       border-radius: 8px;
       margin-bottom: 15px;
     }
-    .action-title { font-size: 14px; color: #3498db; margin-bottom: 10px; font-weight: bold; }
+    .action-title {
+      font-size: 14px;
+      color: #3498db;
+      margin-bottom: 10px;
+      font-weight: bold;
+    }
     
     .player-select-list {
       list-style: none;
