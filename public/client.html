@@ -1,451 +1,135 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>마피아 게임 - 참가자</title>
-  <script src="/socket.io/socket.io.js"></script>
-  <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-    body {
-      background-color: #121212;
-      color: #ffffff;
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      padding: 15px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      min-height: 100vh;
-    }
-    .container {
-      max-width: 500px;
-      width: 100%;
-      background: #1e1e1e;
-      padding: 20px;
-      border-radius: 12px;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-    }
-    h1 {
-      text-align: center;
-      margin-bottom: 15px;
-      color: #f39c12;
-      font-size: 22px;
-    }
-    
-    .join-form {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-    .join-form input {
-      padding: 12px;
-      border-radius: 6px;
-      border: 1px solid #444;
-      background: #2a2a2a;
-      color: #fff;
-      font-size: 16px;
-    }
-    button {
-      padding: 12px;
-      border: none;
-      border-radius: 6px;
-      font-size: 16px;
-      font-weight: bold;
-      cursor: pointer;
-      background: #3498db;
-      color: white;
-      transition: background 0.2s;
-    }
-    button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-    button:hover:not(:disabled) {
-      background: #2980b9;
-    }
-
-    .role-card {
-      background: #2a2a2a;
-      border: 2px solid #f39c12;
-      border-radius: 8px;
-      padding: 15px;
-      text-align: center;
-      margin-bottom: 15px;
-    }
-    .role-title {
-      font-size: 14px;
-      color: #aaa;
-      margin-bottom: 5px;
-    }
-    .role-name {
-      font-size: 24px;
-      font-weight: bold;
-      color: #f39c12;
-    }
-    .mafia-partners {
-      font-size: 13px;
-      color: #e74c3c;
-      margin-top: 5px;
-    }
-
-    .status-box {
-      background: #000;
-      border-radius: 8px;
-      padding: 12px;
-      text-align: center;
-      margin-bottom: 15px;
-      font-size: 15px;
-      line-height: 1.4;
-    }
-
-    .action-panel {
-      background: #252525;
-      padding: 15px;
-      border-radius: 8px;
-      margin-bottom: 15px;
-    }
-    .action-title {
-      font-size: 14px;
-      color: #3498db;
-      margin-bottom: 10px;
-      font-weight: bold;
-    }
-    
-    .player-select-list {
-      list-style: none;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .player-select-item {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      background: #333;
-      padding: 10px 12px;
-      border-radius: 6px;
-    }
-    .player-select-item button {
-      padding: 6px 12px;
-      font-size: 13px;
-    }
-
-    .mafia-status-board {
-      background: #341f1f;
-      border: 1px solid #c0392b;
-      padding: 10px;
-      border-radius: 6px;
-      margin-top: 10px;
-      font-size: 12px;
-    }
-
-    .dead-overlay {
-      background: #3a1111;
-      border: 1px solid #e74c3c;
-      color: #ff8888;
-      padding: 10px;
-      text-align: center;
-      border-radius: 6px;
-      margin-bottom: 15px;
-      font-weight: bold;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <title>마피아 게임 - 플레이어</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            margin: 0;
+            padding: 15px;
+        }
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+            background: #fff;
+            padding: 15px;
+            border: 1px solid #ccc;
+        }
+        .role-card {
+            background: #f8f9fa;
+            border: 2px dashed #6c757d;
+            padding: 15px;
+            text-align: center;
+            margin-bottom: 15px;
+        }
+        .role-title {
+            font-size: 20px;
+            font-weight: bold;
+            color: #d9534f;
+        }
+        .chat-box {
+            border: 1px solid #ccc;
+            height: 200px;
+            overflow-y: scroll;
+            padding: 10px;
+            background: #fafafa;
+            margin-bottom: 10px;
+        }
+        .chat-input-group {
+            display: flex;
+        }
+        .chat-input-group input {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #ccc;
+        }
+        .chat-input-group button {
+            padding: 8px 15px;
+            background: #28a745;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        .action-area {
+            margin-top: 15px;
+            padding: 10px;
+            background: #e9ecef;
+        }
+        select {
+            width: 100%;
+            padding: 8px;
+            margin-top: 5px;
+            margin-bottom: 5px;
+        }
+        .btn-vote {
+            width: 100%;
+            padding: 10px;
+            background: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+    </style>
 </head>
 <body>
-  <div class="container">
-    <h1>🕵️ 마피아 게임</h1>
+    <div class="container">
+        <h2>마피아 게임</h2>
 
-    <!-- 입장 화면 -->
-    <div id="joinSection" class="join-form">
-      <input type="text" id="inviteCodeInput" placeholder="초대 코드 4자리 입력">
-      <input type="text" id="nicknameInput" placeholder="닉네임 입력">
-      <button onclick="joinGame()">입장하기</button>
-      <div id="joinError" style="color: #e74c3c; font-size: 13px; text-align: center;"></div>
+        <!-- 당신의 역할 -->
+        <div class="role-card">
+            당신의 역할: <span class="role-title" id="my-role">마피아</span>
+        </div>
+
+        <!-- 게임 상태 -->
+        <div style="margin-bottom: 10px; font-weight: bold;">
+            현재 단계: <span id="current-phase">낮 (투표 시간)</span>
+        </div>
+
+        <!-- 채팅창 -->
+        <div class="chat-box" id="chat">
+            <div><b>[알림]:</b> 게임이 시작되었습니다.</div>
+            <div><b>플레이어1:</b> 누가 마피아인가요?</div>
+            <div><b>플레이어2:</b> 저는 시민입니다!</div>
+        </div>
+        <div class="chat-input-group">
+            <input type="text" id="msg-input" placeholder="메시지를 입력하세요...">
+            <button onclick="sendMessage()">전송</button>
+        </div>
+
+        <!-- 액션/투표 영역 -->
+        <div class="action-area">
+            <label for="target-select"><b>대상 선택 (투표 / 능력 사용):</b></label>
+            <select id="target-select">
+                <option value="">-- 대상 선택 --</option>
+                <option value="플레이어1">플레이어 1</option>
+                <option value="플레이어2">플레이어 2</option>
+                <option value="플레이어3">플레이어 3</option>
+            </select>
+            <button class="btn-vote" onclick="submitAction()">선택 완료</button>
+        </div>
     </div>
 
-    <!-- 게임 플레이 화면 -->
-    <div id="gameSection" style="display: none;">
-      <div id="deadNotice" class="dead-overlay" style="display: none;">
-        💀 당신은 사망하였습니다. (관전 상태)
-      </div>
-
-      <div class="role-card">
-        <div class="role-title">당신의 직업</div>
-        <div id="roleDisplay" class="role-name">확인 중...</div>
-        <div id="mafiaPartnersDisplay" class="mafia-partners" style="display: none;"></div>
-      </div>
-
-      <div class="status-box" id="statusBox">
-        게임 대기 중입니다...
-      </div>
-
-      <!-- 능력 사용 패널 -->
-      <div id="actionPanel" class="action-panel" style="display: none;">
-        <div id="actionTitle" class="action-title">대상을 선택하세요</div>
-        <ul id="targetList" class="player-select-list"></ul>
-        <div id="mafiaBoard" class="mafia-status-board" style="display: none;"></div>
-      </div>
-
-      <!-- 결과 확인 박스 -->
-      <div id="resultBox" class="status-box" style="display: none; background: #1a252f; border: 1px solid #3498db;">
-      </div>
-    </div>
-  </div>
-
-  <script>
-    const socket = io();
-    let myRole = null;
-    let isAlive = true;
-    let currentPhase = 'WAITING';
-    let myTargetId = null;
-    let isConfirmed = false;
-    let playersList = [];
-
-    const roleMap = {
-      mafia: '🔴 마피아',
-      doctor: '🟢 의사',
-      police: '🔵 경찰',
-      medium: '🟣 영매',
-      citizen: '⚪ 시민'
-    };
-
-    function joinGame() {
-      const code = document.getElementById('inviteCodeInput').value.trim().toUpperCase();
-      const nickname = document.getElementById('nicknameInput').value.trim();
-      
-      if (!code || !nickname) {
-        return alert('초대코드와 닉네임을 모두 입력해주세요.');
-      }
-
-      socket.emit('join_game', { nickname, code });
-    }
-
-    socket.on('join_error', (msg) => {
-      document.getElementById('joinError').innerText = msg;
-    });
-
-    socket.on('rejoin_waiting', (msg) => {
-      document.getElementById('joinError').innerText = msg;
-    });
-
-    socket.on('join_success', () => {
-      document.getElementById('joinSection').style.display = 'none';
-      document.getElementById('gameSection').style.display = 'block';
-    });
-
-    socket.on('rejoin_success', (data) => {
-      document.getElementById('joinSection').style.display = 'none';
-      document.getElementById('gameSection').style.display = 'block';
-      
-      myRole = data.role;
-      isAlive = data.isAlive;
-      currentPhase = data.currentPhase;
-
-      updateRoleUI(data.role, data.mafiaPartners);
-      updateAliveUI();
-    });
-
-    socket.on('your_role', (data) => {
-      myRole = data.role;
-      isAlive = data.isAlive;
-      updateRoleUI(data.role, data.mafiaPartners);
-      updateAliveUI();
-    });
-
-    function updateRoleUI(role, mafiaPartners) {
-      if (!role) return;
-      document.getElementById('roleDisplay').innerText = roleMap[role] || role;
-
-      if (role === 'mafia' && mafiaPartners && mafiaPartners.length > 1) {
-        const partnerEl = document.getElementById('mafiaPartnersDisplay');
-        partnerEl.style.display = 'block';
-        partnerEl.innerText = `마피아 동료: ${mafiaPartners.join(', ')}`;
-      }
-    }
-
-    function updateAliveUI() {
-      document.getElementById('deadNotice').style.display = isAlive ? 'none' : 'block';
-    }
-
-    socket.on('update_players', (data) => {
-      playersList = data.players;
-      if (currentPhase === 'NIGHT' && isAlive) {
-        renderNightActions();
-      }
-    });
-
-    socket.on('phase_change', (data) => {
-      currentPhase = data.phase;
-      const statusBox = document.getElementById('statusBox');
-      const actionPanel = document.getElementById('actionPanel');
-      const resultBox = document.getElementById('resultBox');
-
-      resultBox.style.display = 'none';
-      myTargetId = null;
-      isConfirmed = false;
-
-      if (data.phase === 'DAY') {
-        actionPanel.style.display = 'none';
-        statusBox.innerText = data.resultMsg || data.msg || '낮이 되었습니다. 토론을 진행하세요.';
-      } else if (data.phase === 'NIGHT') {
-        statusBox.innerText = '밤이 되었습니다. 능력을 사용하세요.';
-        if (isAlive) {
-          renderNightActions();
-        } else {
-          actionPanel.style.display = 'none';
+    <script>
+        function sendMessage() {
+            const input = document.getElementById('msg-input');
+            if (input.value.trim() !== '') {
+                const chat = document.getElementById('chat');
+                chat.innerHTML += `<div><b>나:</b> ${input.value}</div>`;
+                chat.scrollTop = chat.scrollHeight;
+                input.value = '';
+            }
         }
-      }
-    });
 
-    socket.on('player_died', () => {
-      isAlive = false;
-      updateAliveUI();
-      document.getElementById('actionPanel').style.display = 'none';
-    });
-
-    function renderNightActions() {
-      const actionPanel = document.getElementById('actionPanel');
-      const actionTitle = document.getElementById('actionTitle');
-      const targetList = document.getElementById('targetList');
-      const mafiaBoard = document.getElementById('mafiaBoard');
-
-      if (myRole === 'citizen' || !isAlive) {
-        actionPanel.style.display = 'none';
-        return;
-      }
-
-      actionPanel.style.display = 'block';
-      targetList.innerHTML = '';
-      mafiaBoard.style.display = 'none';
-
-      if (myRole === 'mafia') {
-        actionTitle.innerText = '🔴 처단할 대상을 지목하세요 (마피아)';
-        mafiaBoard.style.display = 'block';
-        
-        const targets = playersList.filter(p => p.isAlive && p.role !== 'mafia');
-        renderTargetList(targets, (targetId) => {
-          myTargetId = targetId;
-          socket.emit('mafia_vote', { targetId, confirmed: false });
-        }, () => {
-          if (!myTargetId) return alert('대상을 선택해주세요.');
-          isConfirmed = true;
-          socket.emit('mafia_vote', { targetId: myTargetId, confirmed: true });
-        });
-      } 
-      else if (myRole === 'doctor') {
-        actionTitle.innerText = '🟢 치료할 대상을 선택하세요 (의사)';
-        const targets = playersList.filter(p => p.isAlive);
-        renderTargetList(targets, (targetId) => {
-          myTargetId = targetId;
-          socket.emit('doctor_action', { targetId, confirmed: false });
-        }, () => {
-          if (!myTargetId) return alert('대상을 선택해주세요.');
-          isConfirmed = true;
-          socket.emit('doctor_action', { targetId: myTargetId, confirmed: true });
-        });
-      } 
-      else if (myRole === 'police') {
-        actionTitle.innerText = '🔵 조사를 진행할 대상을 선택하세요 (경찰)';
-        const targets = playersList.filter(p => p.isAlive && p.id !== socket.id);
-        renderTargetList(targets, (targetId) => {
-          if (confirm('이 대상을 조사하시겠습니까? (수정 불가)')) {
-            isConfirmed = true;
-            socket.emit('police_investigate', { targetId });
-          }
-        }, null, true);
-      } 
-      else if (myRole === 'medium') {
-        actionTitle.innerText = '🟣 성불시킬 사망자를 선택하세요 (영매)';
-        const targets = playersList.filter(p => !p.isAlive);
-        if (targets.length === 0) {
-          targetList.innerHTML = '<li style="font-size: 13px; color: #aaa;">사망한 플레이어가 없습니다.</li>';
-          return;
+        function submitAction() {
+            const select = document.getElementById('target-select');
+            if (select.value) {
+                alert(`[${select.value}] 님을 선택했습니다.`);
+            } else {
+                alert('대상을 선택해 주세요.');
+            }
         }
-        renderTargetList(targets, (targetId) => {
-          if (confirm('이 사망자의 직업을 확인하시겠습니까? (수정 불가)')) {
-            isConfirmed = true;
-            socket.emit('medium_investigate', { targetId });
-          }
-        }, null, true);
-      }
-    }
-
-    function renderTargetList(targets, onSelect, onConfirm, isOneTouch = false) {
-      const targetList = document.getElementById('targetList');
-      targetList.innerHTML = '';
-
-      targets.forEach(p => {
-        const li = document.createElement('li');
-        li.className = 'player-select-item';
-        
-        const isSelected = myTargetId === p.id;
-
-        li.innerHTML = `
-          <span>${p.nickname}</span>
-          <button class="${isSelected ? 'btn-success' : ''}" ${isConfirmed ? 'disabled' : ''}>
-            ${isOneTouch ? '조사' : (isSelected ? '선택됨' : '선택')}
-          </button>
-        `;
-
-        const btn = li.querySelector('button');
-        btn.onclick = () => {
-          if (isConfirmed) return;
-          onSelect(p.id);
-          renderNightActions();
-        };
-
-        targetList.appendChild(li);
-      });
-
-      if (!isOneTouch && onConfirm) {
-        const confirmBtn = document.createElement('button');
-        confirmBtn.style.marginTop = '10px';
-        confirmBtn.style.width = '100%';
-        confirmBtn.innerText = isConfirmed ? '확정 완료' : '선택 확정';
-        confirmBtn.disabled = isConfirmed || !myTargetId;
-        confirmBtn.onclick = onConfirm;
-        targetList.appendChild(confirmBtn);
-      }
-    }
-
-    socket.on('mafia_vote_update', ({ statusData }) => {
-      const mafiaBoard = document.getElementById('mafiaBoard');
-      let html = '<strong>[마피아 투표 현황]</strong><br>';
-      Object.keys(statusData).forEach(name => {
-        const info = statusData[name];
-        html += `${name}: ${info.targetName} (${info.confirmed ? '확정' : '선택 중'})<br>`;
-      });
-      mafiaBoard.innerHTML = html;
-    });
-
-    socket.on('mafia_vote_error', (msg) => {
-      alert(msg);
-      isConfirmed = false;
-      renderNightActions();
-    });
-
-    socket.on('police_result', (data) => {
-      const resultBox = document.getElementById('resultBox');
-      resultBox.style.display = 'block';
-      resultBox.innerText = `🔍 [조사 결과] ${data.targetName}님은 ${data.isMafia ? '🔴 마피아' : '⚪ 마피아가 아닙니다'}.`;
-      renderNightActions();
-    });
-
-    socket.on('medium_result', (data) => {
-      const resultBox = document.getElementById('resultBox');
-      resultBox.style.display = 'block';
-      resultBox.innerText = `🔮 [영매 결과] ${data.targetName}님의 직업은 '${roleMap[data.role] || data.role}' 입니다.`;
-      renderNightActions();
-    });
-
-    socket.on('roles_reset', () => {
-      alert('게임이 초기화되었습니다.');
-      location.reload();
-    });
-  </script>
+    </script>
 </body>
 </html>
