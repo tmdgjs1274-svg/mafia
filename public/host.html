@@ -57,17 +57,24 @@
         button:hover {
             background-color: #0056b3;
         }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
         button.danger {
             background-color: #dc3545;
         }
         button.danger:hover {
             background-color: #bd2130;
         }
+        button.danger:disabled {
+            background-color: #ccc;
+        }
         .logs {
             background: #333;
             color: #fff;
             padding: 10px;
-            height: 15px;
+            height: 150px;
             overflow-y: scroll;
             font-family: monospace;
             margin-top: 15px;
@@ -79,22 +86,21 @@
         <h1>마피아 게임 관리자 (Host)</h1>
         
         <div class="status-box">
-            현재 상태: <span id="game-phase">대기 중</span> | 남은 시간: <span id="timer">--</span>초
+            현재 상태: <span id="game-phase">낮</span> | 남은 시간: <span id="timer">--</span>초
         </div>
 
-        <h2>참여자 목록 (<span id="player-count">0</span>명)</h2>
+        <h2>참여자 목록 (<span id="player-count">2</span>명)</h2>
         <ul class="player-list" id="players">
-            <!-- 플레이어 예시 -->
-            <li class="player-item">
-                <span>플레이어 1 (시민)</span>
+            <li class="player-item" id="player-1">
+                <span>플레이어 1</span>
                 <div>
-                    <button onclick="killPlayer('플레이어 1')">처형/사망</button>
+                    <button class="kill-btn danger" onclick="executePlayer('player-1')">처형</button>
                 </div>
             </li>
-            <li class="player-item dead">
-                <span>플레이어 2 (마피아) - 사망</span>
+            <li class="player-item" id="player-2">
+                <span>플레이어 2</span>
                 <div>
-                    <span>사망함</span>
+                    <button class="kill-btn danger" onclick="executePlayer('player-2')">처형</button>
                 </div>
             </li>
         </ul>
@@ -102,31 +108,65 @@
         <div class="controls">
             <h2>게임 진행 제어</h2>
             <button onclick="startGame()">게임 시작</button>
-            <button onclick="nextPhase()">다음 단계로 진행</button>
+            <button onclick="nextPhase()">다음 단계로 진행 (낮/밤 전환)</button>
             <button class="danger" onclick="resetGame()">게임 리셋</button>
         </div>
 
         <h2>게임 진행 기록</h2>
         <div class="logs" id="log-box">
             [시스템] 호스트가 방을 생성했습니다.<br>
-            [시스템] 플레이어 1 님이 입장했습니다.<br>
-            [시스템] 플레이어 2 님이 입장했습니다.<br>
+            [시스템] 게임이 시작되었습니다. (현재: 낮)<br>
         </div>
     </div>
 
+    <script src="/socket.io/socket.io.js"></script>
     <script>
-        function startGame() {
-            alert("게임을 시작합니다.");
+        const socket = io();
+        let hasExecutedThisDay = false; // 이번 낮 처형 여부 플래그
+
+        function executePlayer(playerId) {
+            if (hasExecutedThisDay) return;
+
+            // 처형 소켓 이벤트 전송
+            socket.emit('hostExecute', { targetId: playerId });
+
+            // 1회 처형 후 모든 처형 버튼 비활성화
+            disableAllKillButtons();
+            hasExecutedThisDay = true;
         }
-        function nextPhase() {
-            alert("다음 단계로 넘어갑니다.");
+
+        function disableAllKillButtons() {
+            const killBtns = document.querySelectorAll('.kill-btn');
+            killBtns.forEach(btn => btn.disabled = true);
         }
-        function resetGame() {
-            alert("게임을 초기화합니다.");
+
+        function enableAllKillButtons() {
+            const killBtns = document.querySelectorAll('.kill-btn');
+            killBtns.forEach(btn => {
+                // 이미 사망한 플레이어가 아니라면 버튼 재활성화
+                if (!btn.closest('.player-item').classList.contains('dead')) {
+                    btn.disabled = false;
+                }
+            });
         }
-        function killPlayer(name) {
-            alert(name + " 님을 사망 처리했습니다.");
-        }
+
+        // 낮/밤 전환 시 처리 (서버에서 phaseChange 수신)
+        socket.on('phaseChange', (data) => {
+            document.getElementById('game-phase').innerText = data.phase;
+            
+            if (data.phase === '낮') {
+                // 새로운 낮이 시작되면 처형 권한 리셋 및 버튼 재활성화
+                hasExecutedThisDay = false;
+                enableAllKillButtons();
+            } else {
+                // 밤 시간 동안은 처형 버튼 비활성화
+                disableAllKillButtons();
+            }
+        });
+
+        function startGame() { socket.emit('startGame'); }
+        function nextPhase() { socket.emit('nextPhase'); }
+        function resetGame() { socket.emit('resetGame'); }
     </script>
 </body>
 </html>
