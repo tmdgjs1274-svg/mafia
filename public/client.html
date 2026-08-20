@@ -59,9 +59,8 @@
     let myRole = null;
     let isAlive = true;
     let playersData = [];
-    let policeHistory = []; // { targetName, isMafia }
+    let policeHistory = [];
 
-    // 능력 상태 관리
     let isMafiaConfirmed = false;
     let isDoctorConfirmed = false;
     let isPoliceUsedThisNight = false;
@@ -101,7 +100,8 @@
       }
     });
 
-    socket.on('phase_change', ({ phase, msg, resultMsg }) => {
+    // 낮 발표 알림 팝업 삭제 적용
+    socket.on('phase_change', ({ phase }) => {
       const tag = document.getElementById('phase-tag');
       const actionBox = document.getElementById('night-action-box');
 
@@ -117,7 +117,7 @@
         tag.innerText = "☀️ 낮";
         tag.className = "px-2 py-0.5 bg-amber-500/20 text-amber-400 font-bold rounded";
         actionBox.classList.add('hidden');
-        if (resultMsg) alert(`[아침 발표]\n${resultMsg}`);
+        // alert 팝업 삭제됨 (호스트 화면으로 결과 확인 가능)
       }
     });
 
@@ -189,9 +189,11 @@
     function sendMafiaVote(confirmed) {
       const targetId = document.getElementById('mafia-select').value;
       if (!targetId && confirmed) return alert('지목할 대상을 선택하세요.');
-      isMafiaConfirmed = confirmed;
       socket.emit('mafia_vote', { targetId, confirmed });
     }
+
+    // 마피아 만장일치 미달 시 서버에서 전달되는 에러 팝업
+    socket.on('mafia_vote_error', (msg) => alert(msg));
 
     socket.on('mafia_vote_update', ({ statusData }) => {
       const liveBox = document.getElementById('mafia-live-status');
@@ -227,7 +229,7 @@
       }
     }
 
-    // 경찰 조사
+    // 경찰 조사 (팝업 제거 ➔ 화면 UI 표시)
     function checkPolice() {
       const select = document.getElementById('police-select');
       if (!select.value) return alert('대상을 선택하세요.');
@@ -238,9 +240,6 @@
       isPoliceUsedThisNight = true;
       policeHistory.push({ targetName, isMafia });
       
-      alert(`[경찰 조사 결과]\n${targetName}님은 ${isMafia ? '🔴 마피아가 맞습니다!' : '마피아가 아닙니다.'}`);
-      
-      // 기록 업데이트
       const list = document.getElementById('police-history-list');
       list.innerHTML = policeHistory.map(h => `
         <div class="flex justify-between border-b border-zinc-900 pb-0.5">
@@ -252,7 +251,7 @@
       renderNightAction();
     });
 
-    // 영매 조사
+    // 영매 조사 (팝업 제거 ➔ 화면 UI 표시)
     function checkMedium() {
       const select = document.getElementById('medium-select');
       if (!select.value) return alert('사망자를 선택하세요.');
@@ -261,8 +260,12 @@
 
     socket.on('medium_result', ({ targetName, role }) => {
       const roleNames = { mafia: '마피아', police: '경찰', doctor: '의사', medium: '영매', citizen: '시민' };
-      alert(`[영매 조사 결과]\n사망한 ${targetName}님의 정체는 [${roleNames[role] || role}] 이었습니다.`);
-      document.getElementById('action-content').innerHTML = `<p class="text-xs text-emerald-400 font-bold text-center py-2">✅ 영혼 조사가 완료되었습니다.</p>`;
+      document.getElementById('action-content').innerHTML = `
+        <div class="p-3 bg-purple-950/60 border border-purple-800 rounded-lg text-center space-y-1">
+          <div class="text-[11px] text-purple-300">👻 영혼 조사 결과</div>
+          <div class="text-sm font-bold text-white">${targetName} 님 ➔ <span class="text-purple-400">[${roleNames[role] || role}]</span></div>
+        </div>
+      `;
     });
 
     socket.on('player_died', () => {
