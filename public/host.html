@@ -207,7 +207,6 @@
       renderPlayerList();
       updateVoteDropdown();
       updateTotal();
-      checkWinCondition();
     });
 
     socket.on('rejoin_request', (data) => {
@@ -301,6 +300,21 @@
       }
     });
 
+    // [추가] 실시간 게임 종료 수신 시 호스트 화면 표시
+    socket.on('game_over', ({ winner }) => {
+      const text = document.getElementById('announcement-text');
+      document.getElementById('night-status-card').classList.add('hidden');
+      document.getElementById('day-controls').classList.add('hidden');
+      document.getElementById('night-btn').classList.add('hidden');
+      document.getElementById('day-btn').classList.add('hidden');
+
+      if (winner === 'CITIZEN') {
+        text.innerHTML = "<span class='text-emerald-400 font-extrabold text-2xl'>🎉 시민 팀 승리! (마피아 전멸) 🎉</span>";
+      } else {
+        text.innerHTML = "<span class='text-red-500 font-extrabold text-2xl'>🔴 마피아 팀 승리! 🔴</span>";
+      }
+    });
+
     socket.on('execution_error', (msg) => {
         document.getElementById('execute-btn').disabled = true;
         document.getElementById('vote-target').disabled = true;
@@ -372,27 +386,6 @@
       const p = playersData.find(item => item.id === targetId);
       if (confirm(`${p.nickname}님을 처형하시겠습니까?`)) {
         socket.emit('kill_player', targetId);
-      }
-    }
-
-    // [수정] 승리 조건판단 보완 (마피아 0명 판정 포함)
-    function checkWinCondition() {
-      if (playersData.length === 0) return;
-      
-      // 생존한 인원 및 역할 확인
-      const aliveWithRoles = playersData.filter(p => p.role && p.isAlive && p.isConnected);
-      if (aliveWithRoles.length === 0) return;
-
-      const totalAssignedMafias = playersData.filter(p => p.role === 'mafia').length;
-      if (totalAssignedMafias === 0) return; // 아직 게임이 할당되지 않은 경우 예외 처리
-
-      const aliveMafias = aliveWithRoles.filter(p => p.role === 'mafia').length;
-      const aliveCitizens = aliveWithRoles.length - aliveMafias;
-
-      if (aliveMafias === 0) {
-        document.getElementById('announcement-text').innerHTML = "<span class='text-emerald-400 font-extrabold text-2xl'>🎉 시민 팀 승리! (마피아 전멸) 🎉</span>";
-      } else if (aliveMafias >= aliveCitizens) {
-        document.getElementById('announcement-text').innerHTML = "<span class='text-red-500 font-extrabold text-2xl'>🔴 마피아 팀 승리! 🔴</span>";
       }
     }
 
