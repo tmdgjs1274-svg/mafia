@@ -14,7 +14,7 @@ app.get('/play', (req, res) => res.sendFile(path.join(__dirname, 'public', 'clie
 app.get('/', (req, res) => res.redirect('/play'));
 
 let players = [];
-let inviteCode = Math.random().toString(36).substring(2, 6).toUpperCase();
+let inviteCode = generateInviteCode();
 let isAssigned = false;
 let currentPhase = 'WAITING';
 let hostSocketId = null;
@@ -39,6 +39,10 @@ const roleNameMap = {
   medium: '영매',
   citizen: '시민'
 };
+
+function generateInviteCode() {
+  return Math.random().toString(36).substring(2, 6).toUpperCase();
+}
 
 function shuffle(array) {
   return array.sort(() => Math.random() - 0.5);
@@ -66,7 +70,16 @@ function getRandomDelay() {
   return Math.floor(Math.random() * 5000) + 5000;
 }
 
-// 승리 조건 검사 공통 함수
+// 방 완전 초기화 함수
+function createNewRoom() {
+  players = [];
+  inviteCode = generateInviteCode();
+  isAssigned = false;
+  currentPhase = 'WAITING';
+  hasExecutedToday = false;
+  resetNightActions();
+}
+
 function checkWinCondition() {
   if (!isAssigned) return null;
 
@@ -104,15 +117,24 @@ function broadcastNightStatus() {
 }
 
 io.on('connection', (socket) => {
+  // 호스트 등록 및 새로고침 시 새 방 개설
   socket.on('register_host', () => {
     hostSocketId = socket.id;
+    createNewRoom(); // 호스트가 접속/새로고침하면 완전 새 방으로 개설
+    io.emit('roles_reset'); // 기존 연결된 참가자들 초기화
     socket.emit('init_state', { players, inviteCode, isAssigned, currentPhase });
   });
 
-  socket.emit('init_state', { players, inviteCode, isAssigned, currentPhase });
+  // 호스트가 수동으로 새 방을 만드는 경우
+  socket.on('create_new_room', () => {
+    createNewRoom();
+    io.emit('roles_reset');
+    socket.emit('init_state', { players, inviteCode, isAssigned, currentPhase });
+    io.emit('update_players', { players, isAssigned });
+  });
 
   socket.on('join_game', ({ nickname, code }) => {
-    if (code !== inviteCode) return socket.emit('join_error', '초대코드가 일치하지 않습니다.');
+    if (code !== inviteCode) return socket.emit('join_error', '초대코드가 일치하지 않거나 이전 방입니다.');
     
     const cleanName = nickname.trim();
     const existingPlayer = players.find(p => p.nickname === cleanName);
@@ -134,7 +156,9 @@ io.on('connection', (socket) => {
       return socket.emit('join_error', '이미 게임이 시작되어 참가할 수 없습니다.');
     }
 
-    if (existingPlayer) return socket.emit('join_error', '이미 사용 중인 닉네임입니다.');
+    if (existingPlayer && existingPlayer.isConnected) {
+      return socket.emit('join_error', '이미 사용 중인 닉네임입니다.');
+    }
 
     const player = { id: socket.id, nickname: cleanName, role: null, isAlive: true, isConnected: true };
     players.push(player);
@@ -334,7 +358,6 @@ io.on('connection', (socket) => {
 
     io.emit('update_players', { players, isAssigned });
     
-    // 밤 처리 후 승리 조건 검사
     const winner = checkWinCondition();
     if (winner) {
       io.emit('game_over', { winner });
@@ -361,7 +384,6 @@ io.on('connection', (socket) => {
       io.to(p.id).emit('player_died');
       io.emit('update_players', { players, isAssigned });
 
-      // 낮 처형 후 승리 조건 검사
       const winner = checkWinCondition();
 
       if (hostSocketId) {
@@ -395,9 +417,16 @@ io.on('connection', (socket) => {
     if (socket.id === hostSocketId) {
       hostSocketId = null;
     }
-    const p = players.find(item => item.id === socket.id);
-    if (p) {
-      p.isConnected = false;
+
+    const pIdx = players.findIndex(item => item.id === socket.id);
+    if (pIdx !== -1) {
+      if (!isAssigned) {
+        // 게임 시작 전 연결 해제 시 아예 목록에서 제거
+        players.splice(pIdx, 1);
+      } else {
+        // 게임 중 연결 해제 시 오프라인 처리
+        players[pIdx].isConnected = false;
+      }
       io.emit('update_players', { players, isAssigned });
 
       const winner = checkWinCondition();
