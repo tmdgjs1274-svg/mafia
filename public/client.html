@@ -44,7 +44,7 @@
 
     <!-- 마피아 전용 실시간 조율 보드 -->
     <div id="mafia-live-panel" class="hidden bg-red-950/30 border border-red-900/50 p-3 rounded-xl space-y-2 text-left">
-      <div class="text-[11px] font-bold text-red-400">🎯 마피아 실시간 서버 지목 상황</div>
+      <div class="text-[11px] font-bold text-red-400">🎯 마피아 실시간 지목 상황</div>
       <div id="mafia-live-list" class="space-y-1 text-xs"></div>
     </div>
 
@@ -65,6 +65,7 @@
     let myRole = null;
     let myNickname = '';
     let isAlive = true;
+    let latestMafiaStatus = {}; // 마피아 동료 지목 현황 저장용
 
     const urlParams = new URLSearchParams(window.location.search);
     const codeParam = urlParams.get('code');
@@ -91,9 +92,7 @@
       err.classList.remove('hidden');
     }
 
-    socket.on('join_error', (msg) => {
-      showError(msg);
-    });
+    socket.on('join_error', (msg) => { showError(msg); });
 
     socket.on('join_success', () => {
       document.getElementById('join-card').classList.add('hidden');
@@ -187,7 +186,6 @@
       }
     });
 
-    // 드롭다운 변경 시 마피아 실시간 후보 전달
     function onTargetSelectChange() {
       if (myRole === 'mafia') {
         const targetId = document.getElementById('action-target').value;
@@ -197,16 +195,15 @@
       }
     }
 
-    // [추가] 마피아 실시간 동료 지목 현황 업데이트
     socket.on('mafia_vote_update', ({ statusData }) => {
       if (myRole !== 'mafia') return;
 
+      latestMafiaStatus = statusData;
       const liveList = document.getElementById('mafia-live-list');
       if (!liveList) return;
 
       let html = '';
       const targets = [];
-      let allConfirmed = true;
 
       for (const name in statusData) {
         const data = statusData[name];
@@ -214,15 +211,12 @@
         html += `<div class="flex justify-between"><span>${name}: ${data.targetName}</span> <span>${statusText}</span></div>`;
         
         if (data.targetId) targets.push(data.targetId);
-        if (!data.confirmed) allConfirmed = false;
       }
 
       liveList.innerHTML = html;
 
-      // 같은 대상을 모두 지목 중인지 검사
       const isUnanimous = targets.length > 0 && targets.every(t => t === targets[0]);
 
-      // 동의하지 않았거나 불일치하면 알려줌
       if (targets.length > 1 && !isUnanimous) {
         document.getElementById('mafia-partners').innerText = '⚠️ 동료와 지목 대상이 일치하지 않습니다!';
       } else {
@@ -230,11 +224,24 @@
       }
     });
 
+    // [수정] 마피아 팀 지목 일치 검사 후 최종 확정 차단
     function useAbility() {
       const targetId = document.getElementById('action-target').value;
       if (!targetId) return alert('대상을 선택해주세요.');
 
       if (myRole === 'mafia') {
+        const targets = [];
+        for (const name in latestMafiaStatus) {
+          const voteTarget = name === myNickname ? targetId : latestMafiaStatus[name]?.targetId;
+          if (voteTarget) targets.push(voteTarget);
+        }
+
+        const isUnanimous = targets.length > 0 && targets.every(t => t === targets[0]);
+
+        if (Object.keys(latestMafiaStatus).length > 1 && !isUnanimous) {
+          return alert('마피아 전원이 동일한 대상을 선택해야 능력을 확정할 수 있습니다!');
+        }
+
         socket.emit('mafia_vote', { targetId, confirmed: true });
       } else if (myRole === 'doctor') {
         socket.emit('doctor_action', { targetId, confirmed: true });
@@ -256,7 +263,6 @@
       resEl.classList.remove('hidden');
     });
 
-    // [수정] 영매 한글 출력 적용
     socket.on('medium_result', ({ targetName, role }) => {
       const resEl = document.getElementById('ability-result');
       resEl.innerText = `[영매 결과] 사망한 ${targetName}님의 직업은 ${role}이었습니다.`;
@@ -272,6 +278,17 @@
       }
     });
 
+    socket.on('game_over', ({ winner }) => {
+      document.getElementById('action-panel').classList.add('hidden');
+      document.getElementById('mafia-live-panel').classList.add('hidden');
+      document.getElementById('waiting-msg').classList.remove('hidden');
+      if (winner === 'CITIZEN') {
+        document.getElementById('waiting-msg').innerHTML = "<b class='text-emerald-400 text-base'>🎉 시민 팀 승리! (마피아 전멸)</b>";
+      } else {
+        document.getElementById('waiting-msg').innerHTML = "<b class='text-red-500 text-base'>🔴 마피아 팀 승리!</b>";
+      }
+    });
+
     socket.on('player_died', () => {
       isAlive = false;
       document.getElementById('role-title').innerText += ' (사망)';
@@ -281,10 +298,10 @@
       document.getElementById('waiting-msg').innerText = '당신은 사망했습니다. 관전 모드로 전환됩니다.';
     });
 
-    // [수정] 게임 리셋 시 화면을 대기실 상태로 변경 (페이지 새로고침으로 탈락하지 않음)
     socket.on('roles_reset', () => {
       myRole = null;
       isAlive = true;
+      latestMafiaStatus = {};
       document.getElementById('role-title').innerText = '대기 중...';
       document.getElementById('mafia-partners').classList.add('hidden');
       document.getElementById('action-panel').classList.add('hidden');
