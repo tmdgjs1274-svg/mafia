@@ -17,6 +17,7 @@ let players = [];
 let inviteCode = Math.random().toString(36).substring(2, 6).toUpperCase();
 let isAssigned = false;
 let currentPhase = 'WAITING';
+let hostSocketId = null; // 호스트 소켓 저장
 
 let nightActions = {
   mafiaVotes: {},
@@ -28,7 +29,6 @@ let nightActions = {
   mediumConfirmed: false
 };
 
-// 가짜 지연 타이머 관리를 위한 변수
 let fakeTimers = [];
 
 function shuffle(array) {
@@ -53,13 +53,12 @@ function resetNightActions() {
   };
 }
 
-// 5초 ~ 10초 사이의 랜덤 밀리초 반환 함수
 function getRandomDelay() {
   return Math.floor(Math.random() * 5000) + 5000;
 }
 
 function broadcastNightStatus() {
-  const alivePlayers = players.filter(p => p.isAlive);
+  const alivePlayers = players.filter(p => p.isAlive && p.isConnected);
   
   const mafias = alivePlayers.filter(p => p.role === 'mafia');
   const allMafiaConfirmed = mafias.length === 0 || mafias.every(m => nightActions.mafiaVotes[m.id]?.confirmed);
@@ -73,18 +72,74 @@ function broadcastNightStatus() {
 }
 
 io.on('connection', (socket) => {
+  // 호스트 등록
+  socket.on('register_host', () => {
+    hostSocketId = socket.id;
+    socket.emit('init_state', { players, inviteCode, isAssigned, currentPhase });
+  });
+
   socket.emit('init_state', { players, inviteCode, isAssigned, currentPhase });
 
   socket.on('join_game', ({ nickname, code }) => {
     if (code !== inviteCode) return socket.emit('join_error', '초대코드가 일치하지 않습니다.');
     
-    const isDuplicate = players.some(p => p.nickname.trim() === nickname.trim());
-    if (isDuplicate) return socket.emit('join_error', '이미 사용 중인 닉네임입니다.');
+    const cleanName = nickname.trim();
+    const existingPlayer = players.find(p => p.nickname === cleanName);
 
-    const player = { id: socket.id, nickname: nickname.trim(), role: null, isAlive: true };
+    // 1. 게임 진행 중 동일 닉네임 유저가 튕긴 상태(isConnected: false)일 때 -> 재접속 요청
+    if (isAssigned && existingPlayer && !existingPlayer.isConnected) {
+      if (hostSocketId) {
+        io.to(hostSocketId).emit('rejoin_request', {
+          requestSocketId: socket.id,
+          nickname: cleanName,
+          oldSocketId: existingPlayer.id
+        });
+        return socket.emit('rejoin_waiting', '호스트의 재접속 승인을 기다리는 중입니다...');
+      } else {
+        return socket.emit('join_error', '호스트가 연결되어 있지 않아 재접속 승인을 받을 수 없습니다.');
+      }
+    }
+
+    // 2. 게임 진행 중 신규 참가 차단
+    if (isAssigned || currentPhase !== 'WAITING') {
+      return socket.emit('join_error', '이미 게임이 시작되어 참가할 수 없습니다.');
+    }
+
+    // 3. 중복 닉네임 차단 (대기실 상태)
+    if (existingPlayer) return socket.emit('join_error', '이미 사용 중인 닉네임입니다.');
+
+    // 신규 입장
+    const player = { id: socket.id, nickname: cleanName, role: null, isAlive: true, isConnected: true };
     players.push(player);
     socket.emit('join_success');
     io.emit('update_players', { players, isAssigned });
+  });
+
+  // 호스트의 재접속 응답 처리
+  socket.on('rejoin_response', ({ requestSocketId, nickname, approved }) => {
+    const player = players.find(p => p.nickname === nickname && !p.isConnected);
+
+    if (!approved) {
+      return io.to(requestSocketId).emit('join_error', '호스트가 재접속을 거절했습니다.');
+    }
+
+    if (player) {
+      // 기존 소켓 ID를 신규 소켓 ID로 교체하고 연결 상태 복구
+      player.id = requestSocketId;
+      player.isConnected = true;
+
+      const mafias = players.filter(p => p.role === 'mafia').map(p => p.nickname);
+
+      // 클라이언트에 복구 정보 전송
+      io.to(requestSocketId).emit('rejoin_success', {
+        role: player.role,
+        isAlive: player.isAlive,
+        currentPhase,
+        mafiaPartners: player.role === 'mafia' ? mafias : []
+      });
+
+      io.emit('update_players', { players, isAssigned });
+    }
   });
 
   socket.on('assign_roles', (roleConfig) => {
@@ -103,11 +158,13 @@ io.on('connection', (socket) => {
     const mafias = players.filter(p => p.role === 'mafia').map(p => p.nickname);
 
     players.forEach(p => {
-      io.to(p.id).emit('your_role', { 
-        role: p.role, 
-        isAlive: p.isAlive,
-        mafiaPartners: p.role === 'mafia' ? mafias : []
-      });
+      if (p.isConnected) {
+        io.to(p.id).emit('your_role', { 
+          role: p.role, 
+          isAlive: p.isAlive,
+          mafiaPartners: p.role === 'mafia' ? mafias : []
+        });
+      }
     });
 
     isAssigned = true;
@@ -121,7 +178,7 @@ io.on('connection', (socket) => {
     currentPhase = 'NIGHT';
     resetNightActions();
 
-    const alivePlayers = players.filter(p => p.isAlive);
+    const alivePlayers = players.filter(p => p.isAlive && p.isConnected);
     const deadCount = players.filter(p => !p.isAlive).length;
 
     const doc = alivePlayers.find(p => p.role === 'doctor');
@@ -133,7 +190,6 @@ io.on('connection', (socket) => {
     
     broadcastNightStatus();
 
-    // 의사가 없거나 사망한 경우 5~10초 후 완료 처리
     if (!doc) {
       const timer = setTimeout(() => {
         nightActions.doctorConfirmed = true;
@@ -142,7 +198,6 @@ io.on('connection', (socket) => {
       fakeTimers.push(timer);
     }
 
-    // 경찰이 없거나 사망한 경우 5~10초 후 완료 처리
     if (!pol) {
       const timer = setTimeout(() => {
         nightActions.policeConfirmed = true;
@@ -151,7 +206,6 @@ io.on('connection', (socket) => {
       fakeTimers.push(timer);
     }
 
-    // 영매가 없거나 사망했거나, 사망자가 없는 경우 5~10초 후 완료 처리
     if (!med || deadCount === 0) {
       const timer = setTimeout(() => {
         nightActions.mediumConfirmed = true;
@@ -162,7 +216,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('mafia_vote', ({ targetId, confirmed }) => {
-    const mafias = players.filter(p => p.isAlive && p.role === 'mafia');
+    const mafias = players.filter(p => p.isAlive && p.isConnected && p.role === 'mafia');
 
     if (confirmed) {
       const currentVotes = { ...nightActions.mafiaVotes, [socket.id]: { targetId, confirmed: true } };
@@ -226,7 +280,7 @@ io.on('connection', (socket) => {
     clearFakeTimers();
     currentPhase = 'DAY';
 
-    const mafias = players.filter(p => p.isAlive && p.role === 'mafia');
+    const mafias = players.filter(p => p.isAlive && p.isConnected && p.role === 'mafia');
     const votes = Object.values(nightActions.mafiaVotes);
     
     let mafiaTargetId = null;
@@ -271,7 +325,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('reset_roles', () => {
-    players.forEach(p => { p.role = null; p.isAlive = true; });
+    players = [];
     isAssigned = false;
     currentPhase = 'WAITING';
     resetNightActions();
@@ -281,8 +335,14 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
-    players = players.filter(p => p.id !== socket.id);
-    io.emit('update_players', { players, isAssigned });
+    if (socket.id === hostSocketId) {
+      hostSocketId = null;
+    }
+    const p = players.find(item => item.id === socket.id);
+    if (p) {
+      p.isConnected = false;
+      io.emit('update_players', { players, isAssigned });
+    }
   });
 });
 
