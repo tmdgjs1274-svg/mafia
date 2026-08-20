@@ -9,7 +9,6 @@
 </head>
 <body class="bg-zinc-950 text-white min-h-screen p-4 flex items-center justify-center relative">
 
-  <!-- 우상단 전체화면 버튼 -->
   <button onclick="toggleFullScreen()" class="absolute top-4 right-4 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold rounded-lg text-xs flex items-center gap-1 shadow-lg transition z-10">
     🖥️ 전체화면
   </button>
@@ -107,21 +106,21 @@
           </div>
         </div>
 
-        <!-- 실시간 능력 확정 현황 표시판 (밤 전용) -->
+        <!-- 실시간 능력 완료 현황 -->
         <div id="night-status-card" class="hidden bg-indigo-950/40 p-3 rounded-xl border border-indigo-800/60 space-y-2">
           <div class="text-xs font-bold text-indigo-300">🌙 밤 능력 실시간 완료 현황</div>
           <div class="grid grid-cols-2 gap-2 text-xs">
             <div id="st-mafia" class="p-2 bg-zinc-950 rounded border border-zinc-800 flex justify-between">
-              <span>🔴 마피아</span> <span id="st-mafia-val">⏳ 대기중</span>
+              <span>🔴 마피아</span> <span id="st-mafia-val">⏳ 진행중</span>
             </div>
             <div id="st-doctor" class="p-2 bg-zinc-950 rounded border border-zinc-800 flex justify-between">
-              <span>🟢 의사</span> <span id="st-doctor-val">⏳ 대기중</span>
+              <span>🟢 의사</span> <span id="st-doctor-val">⏳ 진행중</span>
             </div>
             <div id="st-police" class="p-2 bg-zinc-950 rounded border border-zinc-800 flex justify-between">
-              <span>🔵 경찰</span> <span id="st-police-val">⏳ 대기중</span>
+              <span>🔵 경찰</span> <span id="st-police-val">⏳ 진행중</span>
             </div>
             <div id="st-medium" class="p-2 bg-zinc-950 rounded border border-zinc-800 flex justify-between">
-              <span>🟣 영매</span> <span id="st-medium-val">⏳ 대기중</span>
+              <span>🟣 영매</span> <span id="st-medium-val">⏳ 진행중</span>
             </div>
           </div>
         </div>
@@ -163,7 +162,7 @@
     const socket = io();
     let playersData = [];
     let roles = { mafia: 2, police: 1, doctor: 1, medium: 1, citizen: 3 };
-    let currentNightStatus = {}; // 밤 확정 상태 저장
+    let currentNightStatus = {};
 
     socket.on('init_state', ({ inviteCode }) => {
       document.getElementById('invite-code').innerText = inviteCode;
@@ -192,10 +191,10 @@
 
     socket.on('night_status_update', (st) => {
       currentNightStatus = st;
-      document.getElementById('st-mafia-val').innerText = !st.hasMafia ? '없음' : (st.mafiaConfirmed ? '✅ 완료' : '⏳ 진행중');
-      document.getElementById('st-doctor-val').innerText = !st.hasDoctor ? '없음' : (st.doctorConfirmed ? '✅ 완료' : '⏳ 진행중');
-      document.getElementById('st-police-val').innerText = !st.hasPolice ? '없음' : (st.policeConfirmed ? '✅ 완료' : '⏳ 진행중');
-      document.getElementById('st-medium-val').innerText = !st.hasMedium ? '없음' : (st.mediumConfirmed ? '✅ 완료' : '⏳ 진행중');
+      document.getElementById('st-mafia-val').innerText = st.mafiaConfirmed ? '✅ 완료' : '⏳ 진행중';
+      document.getElementById('st-doctor-val').innerText = st.doctorConfirmed ? '✅ 완료' : '⏳ 진행중';
+      document.getElementById('st-police-val').innerText = st.policeConfirmed ? '✅ 완료' : '⏳ 진행중';
+      document.getElementById('st-medium-val').innerText = st.mediumConfirmed ? '✅ 완료' : '⏳ 진행중';
     });
 
     socket.on('phase_change', ({ phase, msg, resultMsg }) => {
@@ -265,14 +264,9 @@
 
     function goNight() { socket.emit('start_night'); }
 
-    // 밤 결과 진행 시 미확정자 체크
     function goDay() { 
       const st = currentNightStatus;
-      const isAllConfirmed = 
-        (!st.hasMafia || st.mafiaConfirmed) &&
-        (!st.hasDoctor || st.doctorConfirmed) &&
-        (!st.hasPolice || st.policeConfirmed) &&
-        (!st.hasMedium || st.mediumConfirmed);
+      const isAllConfirmed = st.mafiaConfirmed && st.doctorConfirmed && st.policeConfirmed && st.mediumConfirmed;
 
       if (!isAllConfirmed) {
         if (!confirm('아직 능력을 확정하지 않은 직업이 있습니다. 정말 진행하시겠습니까?')) {
@@ -315,7 +309,6 @@
     function openQrModal() { document.getElementById('qr-modal').classList.remove('hidden'); }
     function closeQrModal() { document.getElementById('qr-modal').classList.add('hidden'); }
 
-    // 전체 화면 전환 함수
     function toggleFullScreen() {
       if (!document.fullscreenElement) {
         document.documentElement.requestFullscreen().catch(err => {
