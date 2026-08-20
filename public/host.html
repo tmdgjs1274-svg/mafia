@@ -1,449 +1,132 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>마피아 게임 - 호스트 화면</title>
-  <script src="/socket.io/socket.io.js"></script>
-  <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-    body {
-      background-color: #121212;
-      color: #ffffff;
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      padding: 20px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      min-height: 100vh;
-    }
-    .container {
-      max-width: 800px;
-      width: 100%;
-      background: #1e1e1e;
-      padding: 25px;
-      border-radius: 12px;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-    }
-    h1 {
-      text-align: center;
-      margin-bottom: 20px;
-      color: #f39c12;
-    }
-    .status-box {
-      background: #000000;
-      border: 1px solid #333;
-      border-radius: 8px;
-      padding: 15px;
-      text-align: center;
-      margin-bottom: 20px;
-    }
-    .phase-badge {
-      display: inline-block;
-      background: #443300;
-      color: #ffcc00;
-      padding: 4px 12px;
-      border-radius: 12px;
-      font-size: 14px;
-      font-weight: bold;
-      margin-bottom: 10px;
-      border: 1px solid #886600;
-    }
-    .status-msg {
-      font-size: 18px;
-      font-weight: bold;
-      line-height: 1.4;
-    }
-    .info-bar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      background: #2a2a2a;
-      padding: 12px 20px;
-      border-radius: 8px;
-      margin-bottom: 20px;
-    }
-    .invite-code {
-      font-size: 18px;
-      font-weight: bold;
-      color: #2ecc71;
-    }
-    .controls {
-      display: flex;
-      gap: 10px;
-      margin-bottom: 20px;
-      flex-wrap: wrap;
-    }
-    .role-setup {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-      gap: 10px;
-      background: #252525;
-      padding: 15px;
-      border-radius: 8px;
-      margin-bottom: 20px;
-    }
-    .role-input-group {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-    .role-input-group label {
-      font-size: 12px;
-      margin-bottom: 5px;
-      color: #ccc;
-    }
-    .role-input-group input {
-      width: 50px;
-      padding: 5px;
-      text-align: center;
-      border-radius: 4px;
-      border: 1px solid #444;
-      background: #333;
-      color: #fff;
-    }
-    button {
-      padding: 10px 16px;
-      border: none;
-      border-radius: 6px;
-      font-size: 14px;
-      font-weight: bold;
-      cursor: pointer;
-      transition: background 0.2s, opacity 0.2s;
-    }
-    button:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-    }
-    .btn-primary { background: #3498db; color: #fff; }
-    .btn-primary:hover:not(:disabled) { background: #2980b9; }
-    .btn-success { background: #2ecc71; color: #fff; }
-    .btn-success:hover:not(:disabled) { background: #27ae60; }
-    .btn-danger { background: #e74c3c; color: #fff; }
-    .btn-danger:hover:not(:disabled) { background: #c0392b; }
-    .btn-warning { background: #f39c12; color: #fff; }
-    .btn-warning:hover:not(:disabled) { background: #d35400; }
-    
-    .player-list {
-      list-style: none;
-    }
-    .player-item {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      background: #2a2a2a;
-      padding: 12px 16px;
-      border-radius: 6px;
-      margin-bottom: 8px;
-    }
-    .player-item.dead {
-      opacity: 0.5;
-      background: #1a1a1a;
-      text-decoration: line-through;
-    }
-    .player-info {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    .player-status {
-      font-size: 12px;
-      padding: 2px 6px;
-      border-radius: 4px;
-    }
-    .status-alive { background: #27ae60; color: #fff; }
-    .status-dead { background: #7f8c8d; color: #fff; }
-    .offline-tag { color: #e74c3c; font-size: 12px; font-weight: normal; }
-
-    .night-status-panel {
-      background: #1a252f;
-      border: 1px solid #2c3e50;
-      padding: 15px;
-      border-radius: 8px;
-      margin-bottom: 20px;
-    }
-    .night-status-title {
-      font-size: 14px;
-      color: #3498db;
-      margin-bottom: 10px;
-      font-weight: bold;
-    }
-    .night-status-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-      gap: 10px;
-    }
-    .night-status-item {
-      background: #2c3e50;
-      padding: 8px;
-      border-radius: 4px;
-      text-align: center;
-      font-size: 13px;
-    }
-    .status-done { color: #2ecc71; font-weight: bold; }
-    .status-waiting { color: #e67e22; }
-
-    .modal-overlay {
-      position: fixed;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0,0,0,0.8);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      z-index: 1000;
-    }
-    .modal {
-      background: #2c3e50;
-      padding: 25px;
-      border-radius: 10px;
-      max-width: 400px;
-      width: 90%;
-      text-align: center;
-    }
-    .modal h3 { margin-bottom: 15px; color: #f39c12; }
-    .modal p { margin-bottom: 20px; }
-    .modal-btns { display: flex; gap: 10px; justify-content: center; }
-  </style>
+    <meta charset="UTF-8">
+    <title>마피아 게임 - 호스트 화면</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #fff;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1, h2 {
+            border-bottom: 2px solid #333;
+            padding-bottom: 5px;
+        }
+        .status-box {
+            background: #e9ecef;
+            padding: 15px;
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
+        .player-list {
+            list-style: none;
+            padding: 0;
+        }
+        .player-item {
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .player-item.dead {
+            background-color: #ffe6e6;
+            color: #888;
+            text-decoration: line-through;
+        }
+        .controls {
+            margin-top: 20px;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            margin-right: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button.danger {
+            background-color: #dc3545;
+        }
+        button.danger:hover {
+            background-color: #bd2130;
+        }
+        .logs {
+            background: #333;
+            color: #fff;
+            padding: 10px;
+            height: 15px;
+            overflow-y: scroll;
+            font-family: monospace;
+            margin-top: 15px;
+        }
+    </style>
 </head>
 <body>
-  <div class="container">
-    <h1>👑 마피아 게임 호스트</h1>
+    <div class="container">
+        <h1>마피아 게임 관리자 (Host)</h1>
+        
+        <div class="status-box">
+            현재 상태: <span id="game-phase">대기 중</span> | 남은 시간: <span id="timer">--</span>초
+        </div>
 
-    <div class="status-box">
-      <div id="phaseBadge" class="phase-badge">대기 단계</div>
-      <div id="statusMsg" class="status-msg">참가자를 기다리는 중입니다...</div>
+        <h2>참여자 목록 (<span id="player-count">0</span>명)</h2>
+        <ul class="player-list" id="players">
+            <!-- 플레이어 예시 -->
+            <li class="player-item">
+                <span>플레이어 1 (시민)</span>
+                <div>
+                    <button onclick="killPlayer('플레이어 1')">처형/사망</button>
+                </div>
+            </li>
+            <li class="player-item dead">
+                <span>플레이어 2 (마피아) - 사망</span>
+                <div>
+                    <span>사망함</span>
+                </div>
+            </li>
+        </ul>
+
+        <div class="controls">
+            <h2>게임 진행 제어</h2>
+            <button onclick="startGame()">게임 시작</button>
+            <button onclick="nextPhase()">다음 단계로 진행</button>
+            <button class="danger" onclick="resetGame()">게임 리셋</button>
+        </div>
+
+        <h2>게임 진행 기록</h2>
+        <div class="logs" id="log-box">
+            [시스템] 호스트가 방을 생성했습니다.<br>
+            [시스템] 플레이어 1 님이 입장했습니다.<br>
+            [시스템] 플레이어 2 님이 입장했습니다.<br>
+        </div>
     </div>
 
-    <div class="info-bar">
-      <div>초대 코드: <span id="inviteCode" class="invite-code">----</span></div>
-      <div>참가자 수: <span id="playerCount">0</span>명</div>
-    </div>
-
-    <div id="roleSetup" class="role-setup">
-      <div class="role-input-group">
-        <label>🔴 마피아</label>
-        <input type="number" id="roleMafia" value="1" min="0">
-      </div>
-      <div class="role-input-group">
-        <label>🟢 의사</label>
-        <input type="number" id="roleDoctor" value="1" min="0">
-      </div>
-      <div class="role-input-group">
-        <label>🔵 경찰</label>
-        <input type="number" id="rolePolice" value="1" min="0">
-      </div>
-      <div class="role-input-group">
-        <label>🟣 영매</label>
-        <input type="number" id="roleMedium" value="0" min="0">
-      </div>
-      <div class="role-input-group">
-        <label>⚪ 시민</label>
-        <input type="number" id="roleCitizen" value="1" min="0">
-      </div>
-    </div>
-
-    <div class="controls">
-      <button id="btnAssign" class="btn-primary" onclick="assignRoles()">역할 배정 및 게임 시작</button>
-      <button id="btnStartNight" class="btn-warning" onclick="startNight()" disabled>밤으로 전환</button>
-      <button id="btnResolveNight" class="btn-success" onclick="resolveNight()" disabled>밤 결과 처리 (낮으로)</button>
-      <button id="btnReset" class="btn-danger" onclick="resetRoles()">게임 초기화</button>
-    </div>
-
-    <div id="nightStatusPanel" class="night-status-panel" style="display: none;">
-      <div class="night-status-title">🌙 밤 진행 상태 (직업별 입력 완료 여부)</div>
-      <div class="night-status-grid">
-        <div class="night-status-item">마피아: <span id="stMafia" class="status-waiting">대기중</span></div>
-        <div class="night-status-item">의사: <span id="stDoctor" class="status-waiting">대기중</span></div>
-        <div class="night-status-item">경찰: <span id="stPolice" class="status-waiting">대기중</span></div>
-        <div class="night-status-item">영매: <span id="stMedium" class="status-waiting">대기중</span></div>
-      </div>
-    </div>
-
-    <h2 style="margin-bottom: 15px; font-size: 18px; color: #ddd;">참가자 목록</h2>
-    <ul id="playerList" class="player-list"></ul>
-  </div>
-
-  <div id="rejoinModal" class="modal-overlay" style="display: none;">
-    <div class="modal">
-      <h3>재접속 요청</h3>
-      <p id="rejoinMsg">----님이 재접속을 요청했습니다.</p>
-      <div class="modal-btns">
-        <button class="btn-success" onclick="respondRejoin(true)">승인</button>
-        <button class="btn-danger" onclick="respondRejoin(false)">거절</button>
-      </div>
-    </div>
-  </div>
-
-  <script>
-    const socket = io();
-    let currentPhase = 'WAITING';
-    let isAssigned = false;
-    let hasExecutedToday = false;
-    let currentRejoinReq = null;
-
-    socket.emit('register_host');
-
-    socket.on('init_state', (data) => {
-      document.getElementById('inviteCode').innerText = data.inviteCode;
-      currentPhase = data.currentPhase;
-      isAssigned = data.isAssigned;
-      hasExecutedToday = data.hasExecutedToday || false;
-      updateUIState();
-      renderPlayers(data.players);
-    });
-
-    socket.on('update_players', (data) => {
-      isAssigned = data.isAssigned;
-      hasExecutedToday = data.hasExecutedToday || false;
-      renderPlayers(data.players);
-      updateUIState();
-    });
-
-    socket.on('phase_change', (data) => {
-      currentPhase = data.phase;
-      
-      const badge = document.getElementById('phaseBadge');
-      const msg = document.getElementById('statusMsg');
-
-      if (data.phase === 'DAY') {
-        badge.innerText = '☀️ 낮 단계';
-        badge.style.background = '#443300';
-        badge.style.color = '#ffcc00';
-        msg.innerText = data.resultMsg || data.msg || '낮 토론을 진행해주세요.';
-        document.getElementById('nightStatusPanel').style.display = 'none';
-      } else if (data.phase === 'NIGHT') {
-        badge.innerText = '🌙 밤 단계';
-        badge.style.background = '#1a252f';
-        badge.style.color = '#3498db';
-        msg.innerText = data.msg || '밤이 되었습니다. 참가자들이 능력을 사용하는 중입니다.';
-        document.getElementById('nightStatusPanel').style.display = 'block';
-      }
-
-      updateUIState();
-      renderPlayers(window.latestPlayers || []);
-    });
-
-    socket.on('night_status_update', (status) => {
-      setNightStatus('stMafia', status.mafiaConfirmed);
-      setNightStatus('stDoctor', status.doctorConfirmed);
-      setNightStatus('stPolice', status.policeConfirmed);
-      setNightStatus('stMedium', status.mediumConfirmed);
-    });
-
-    function setNightStatus(elemId, isDone) {
-      const el = document.getElementById(elemId);
-      if (isDone) {
-        el.innerText = '완료';
-        el.className = 'status-done';
-      } else {
-        el.innerText = '대기중';
-        el.className = 'status-waiting';
-      }
-    }
-
-    socket.on('rejoin_request', (req) => {
-      currentRejoinReq = req;
-      document.getElementById('rejoinMsg').innerText = `'${req.nickname}'님이 재접속을 요청했습니다. 승인하시겠습니까?`;
-      document.getElementById('rejoinModal').style.display = 'flex';
-    });
-
-    function respondRejoin(approved) {
-      if (currentRejoinReq) {
-        socket.emit('rejoin_response', {
-          requestSocketId: currentRejoinReq.requestSocketId,
-          nickname: currentRejoinReq.nickname,
-          approved
-        });
-        currentRejoinReq = null;
-      }
-      document.getElementById('rejoinModal').style.display = 'none';
-    }
-
-    function renderPlayers(players) {
-      window.latestPlayers = players;
-      document.getElementById('playerCount').innerText = players.length;
-      const listEl = document.getElementById('playerList');
-      listEl.innerHTML = '';
-
-      const roleMap = {
-        mafia: '🔴 마피아',
-        doctor: '🟢 의사',
-        police: '🔵 경찰',
-        medium: '🟣 영매',
-        citizen: '⚪ 시민'
-      };
-
-      players.forEach(p => {
-        const li = document.createElement('li');
-        li.className = `player-item ${p.isAlive ? '' : 'dead'}`;
-
-        const roleText = (isAssigned && p.role) ? ` [${roleMap[p.role] || p.role}]` : '';
-        const offlineText = p.isConnected ? '' : ' <span class="offline-tag">(연결 끊김)</span>';
-
-        // 처형 버튼 비활성화 조건: 낮이 아니거나, 이미 오늘 처형 완료했거나, 플레이어가 사망한 경우
-        const canKill = currentPhase === 'DAY' && p.isAlive && !hasExecutedToday;
-
-        li.innerHTML = `
-          <div class="player-info">
-            <span class="player-status ${p.isAlive ? 'status-alive' : 'status-dead'}">
-              ${p.isAlive ? '생존' : '사망'}
-            </span>
-            <strong>${p.nickname}</strong>${roleText}${offlineText}
-          </div>
-          <div>
-            ${p.isAlive ? `<button class="btn-danger" onclick="killPlayer('${p.id}')" ${canKill ? '' : 'disabled'}>처형</button>` : ''}
-          </div>
-        `;
-        listEl.appendChild(li);
-      });
-    }
-
-    function updateUIState() {
-      document.getElementById('btnAssign').disabled = isAssigned;
-      document.getElementById('roleSetup').style.opacity = isAssigned ? '0.5' : '1';
-      
-      const roleInputs = document.querySelectorAll('#roleSetup input');
-      roleInputs.forEach(input => input.disabled = isAssigned);
-
-      document.getElementById('btnStartNight').disabled = !isAssigned || currentPhase !== 'DAY';
-      document.getElementById('btnResolveNight').disabled = !isAssigned || currentPhase !== 'NIGHT';
-    }
-
-    function assignRoles() {
-      const roleConfig = {
-        mafia: parseInt(document.getElementById('roleMafia').value) || 0,
-        doctor: parseInt(document.getElementById('roleDoctor').value) || 0,
-        police: parseInt(document.getElementById('rolePolice').value) || 0,
-        medium: parseInt(document.getElementById('roleMedium').value) || 0,
-        citizen: parseInt(document.getElementById('roleCitizen').value) || 0
-      };
-
-      socket.emit('assign_roles', roleConfig);
-    }
-
-    function startNight() {
-      socket.emit('start_night');
-    }
-
-    function resolveNight() {
-      socket.emit('resolve_night');
-    }
-
-    function killPlayer(playerId) {
-      if (confirm('해당 플레이어를 처형하시겠습니까?')) {
-        socket.emit('kill_player', playerId);
-      }
-    }
-
-    function resetRoles() {
-      if (confirm('게임 상태를 초기화하고 모든 참가자 목록을 리셋하시겠습니까?')) {
-        socket.emit('reset_roles');
-      }
-    }
-  </script>
+    <script>
+        function startGame() {
+            alert("게임을 시작합니다.");
+        }
+        function nextPhase() {
+            alert("다음 단계로 넘어갑니다.");
+        }
+        function resetGame() {
+            alert("게임을 초기화합니다.");
+        }
+        function killPlayer(name) {
+            alert(name + " 님을 사망 처리했습니다.");
+        }
+    </script>
 </body>
 </html>
