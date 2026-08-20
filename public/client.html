@@ -168,6 +168,16 @@
       document.getElementById('ability-result').classList.add('hidden');
 
       if (['mafia', 'doctor', 'police', 'medium'].includes(myRole)) {
+        if (myRole === 'medium') {
+          const deadPlayers = players.filter(p => !p.isAlive);
+          if (deadPlayers.length === 0) {
+            document.getElementById('action-panel').classList.add('hidden');
+            document.getElementById('waiting-msg').classList.remove('hidden');
+            document.getElementById('waiting-msg').innerText = '현재 사망한 플레이어가 없어 능력을 사용할 대상이 없습니다.';
+            return;
+          }
+        }
+
         document.getElementById('action-panel').classList.remove('hidden');
         document.getElementById('waiting-msg').classList.add('hidden');
 
@@ -177,7 +187,6 @@
         if (myRole === 'medium') {
           validTargets = players.filter(p => !p.isAlive);
         } else if (myRole === 'police') {
-          // 경찰 본인 제외 처리
           validTargets = players.filter(p => p.isAlive && p.id !== mySocketId);
         } else {
           validTargets = players.filter(p => p.isAlive);
@@ -202,7 +211,6 @@
       }
     }
 
-    // 마피아 지목 대상 뱃지화 레이아웃 적용
     socket.on('mafia_vote_update', ({ statusData }) => {
       if (myRole !== 'mafia') return;
 
