@@ -3,400 +3,445 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>마피아 호스트 화면</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <title>마피아 게임 - 호스트 화면</title>
   <script src="/socket.io/socket.io.js"></script>
-</head>
-<body class="bg-zinc-950 text-white min-h-screen p-4 flex items-center justify-center relative">
-
-  <button onclick="toggleFullScreen()" class="absolute top-4 right-4 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold rounded-lg text-xs flex items-center gap-1 shadow-lg transition z-10">
-    🖥️ 전체화면
-  </button>
-
-  <div class="w-full max-w-4xl bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-2xl grid grid-cols-1 md:grid-cols-12 gap-6">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      background-color: #121212;
+      color: #ffffff;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+    .container {
+      max-width: 800px;
+      width: 100%;
+      background: #1e1e1e;
+      padding: 25px;
+      border-radius: 12px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 20px;
+      color: #f39c12;
+    }
+    .status-box {
+      background: #000000;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 15px;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .phase-badge {
+      display: inline-block;
+      background: #443300;
+      color: #ffcc00;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: bold;
+      margin-bottom: 10px;
+      border: 1px solid #886600;
+    }
+    .status-msg {
+      font-size: 18px;
+      font-weight: bold;
+      line-height: 1.4;
+    }
+    .info-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #2a2a2a;
+      padding: 12px 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+    .invite-code {
+      font-size: 18px;
+      font-weight: bold;
+      color: #2ecc71;
+    }
+    .controls {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .role-setup {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 10px;
+      background: #252525;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+    .role-input-group {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .role-input-group label {
+      font-size: 12px;
+      margin-bottom: 5px;
+      color: #ccc;
+    }
+    .role-input-group input {
+      width: 50px;
+      padding: 5px;
+      text-align: center;
+      border-radius: 4px;
+      border: 1px solid #444;
+      background: #333;
+      color: #fff;
+    }
+    button {
+      padding: 10px 16px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.2s, opacity 0.2s;
+    }
+    button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    .btn-primary { background: #3498db; color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: #2980b9; }
+    .btn-success { background: #2ecc71; color: #fff; }
+    .btn-success:hover:not(:disabled) { background: #27ae60; }
+    .btn-danger { background: #e74c3c; color: #fff; }
+    .btn-danger:hover:not(:disabled) { background: #c0392b; }
+    .btn-warning { background: #f39c12; color: #fff; }
+    .btn-warning:hover:not(:disabled) { background: #d35400; }
     
-    <!-- LEFT PANEL -->
-    <div class="md:col-span-4 space-y-4 border-r border-zinc-800/80 pr-0 md:pr-4">
-      <div>
-        <span class="text-xs text-emerald-400 font-bold uppercase tracking-wider">Host Dashboard</span>
-        <h1 class="text-2xl font-bold">마피아 게임 보드</h1>
-      </div>
+    .player-list {
+      list-style: none;
+    }
+    .player-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #2a2a2a;
+      padding: 12px 16px;
+      border-radius: 6px;
+      margin-bottom: 8px;
+    }
+    .player-item.dead {
+      opacity: 0.5;
+      background: #1a1a1a;
+      text-decoration: line-through;
+    }
+    .player-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .player-status {
+      font-size: 12px;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .status-alive { background: #27ae60; color: #fff; }
+    .status-dead { background: #7f8c8d; color: #fff; }
+    .offline-tag { color: #e74c3c; font-size: 12px; font-weight: normal; }
 
-      <div class="p-3 bg-zinc-950 border border-zinc-800 rounded-xl flex items-center justify-between">
-        <div>
-          <div class="text-[10px] text-zinc-500 font-semibold">참가 초대 코드</div>
-          <div id="invite-code" class="text-xl font-black tracking-widest text-emerald-400">----</div>
-        </div>
-        <div onclick="openQrModal()" class="cursor-pointer bg-white p-1 rounded-lg">
-          <img id="qr-thumb" src="" alt="QR Code" class="w-10 h-10">
-        </div>
-      </div>
+    .night-status-panel {
+      background: #1a252f;
+      border: 1px solid #2c3e50;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+    .night-status-title {
+      font-size: 14px;
+      color: #3498db;
+      margin-bottom: 10px;
+      font-weight: bold;
+    }
+    .night-status-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 10px;
+    }
+    .night-status-item {
+      background: #2c3e50;
+      padding: 8px;
+      border-radius: 4px;
+      text-align: center;
+      font-size: 13px;
+    }
+    .status-done { color: #2ecc71; font-weight: bold; }
+    .status-waiting { color: #e67e22; }
 
-      <div>
-        <div class="flex justify-between items-center text-xs mb-2">
-          <span class="text-zinc-400 font-medium">참가자 목록 (<b id="player-count" class="text-emerald-400">0</b>명)</span>
-          <button id="toggle-role-btn" onclick="toggleRoleVisibility()" class="px-2 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-[10px] font-bold rounded transition">
-            👁️ 직업 보기
-          </button>
-        </div>
-        <div id="player-list" class="space-y-1.5 overflow-y-auto max-h-64 border border-zinc-800/80 rounded-xl p-2 bg-zinc-950/50 text-xs"></div>
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.8);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+    .modal {
+      background: #2c3e50;
+      padding: 25px;
+      border-radius: 10px;
+      max-width: 400px;
+      width: 90%;
+      text-align: center;
+    }
+    .modal h3 { margin-bottom: 15px; color: #f39c12; }
+    .modal p { margin-bottom: 20px; }
+    .modal-btns { display: flex; gap: 10px; justify-content: center; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>👑 마피아 게임 호스트</h1>
+
+    <div class="status-box">
+      <div id="phaseBadge" class="phase-badge">대기 단계</div>
+      <div id="statusMsg" class="status-msg">참가자를 기다리는 중입니다...</div>
+    </div>
+
+    <div class="info-bar">
+      <div>초대 코드: <span id="inviteCode" class="invite-code">----</span></div>
+      <div>참가자 수: <span id="playerCount">0</span>명</div>
+    </div>
+
+    <div id="roleSetup" class="role-setup">
+      <div class="role-input-group">
+        <label>🔴 마피아</label>
+        <input type="number" id="roleMafia" value="1" min="0">
+      </div>
+      <div class="role-input-group">
+        <label>🟢 의사</label>
+        <input type="number" id="roleDoctor" value="1" min="0">
+      </div>
+      <div class="role-input-group">
+        <label>🔵 경찰</label>
+        <input type="number" id="rolePolice" value="1" min="0">
+      </div>
+      <div class="role-input-group">
+        <label>🟣 영매</label>
+        <input type="number" id="roleMedium" value="0" min="0">
+      </div>
+      <div class="role-input-group">
+        <label>⚪ 시민</label>
+        <input type="number" id="roleCitizen" value="1" min="0">
       </div>
     </div>
 
-    <!-- RIGHT PANEL -->
-    <div class="md:col-span-8 flex flex-col justify-between space-y-4">
-      
-      <!-- 역할 세팅 -->
-      <div id="setup-panel" class="space-y-4">
-        <div class="flex justify-between items-center border-b border-zinc-800 pb-2">
-          <span class="text-xs text-zinc-400 font-semibold">역할 세팅 (총 <span id="total-roles" class="text-white font-bold">8</span>개)</span>
-          <button onclick="applyDefaultPreset()" class="text-[11px] text-blue-400 underline">8인 추천 세팅</button>
-        </div>
-
-        <div class="grid grid-cols-2 gap-2 text-xs">
-          <div class="flex justify-between items-center p-2 bg-zinc-950 rounded-lg border border-zinc-800">
-            <span class="text-red-400 font-semibold">🔴 마피아</span>
-            <div class="flex items-center gap-1.5">
-              <button onclick="changeRole('mafia', -1)" class="w-5 h-5 bg-zinc-800 rounded font-bold">-</button>
-              <span id="role-mafia" class="w-3 text-center font-bold">2</span>
-              <button onclick="changeRole('mafia', 1)" class="w-5 h-5 bg-zinc-800 rounded font-bold">+</button>
-            </div>
-          </div>
-          <div class="flex justify-between items-center p-2 bg-zinc-950 rounded-lg border border-zinc-800">
-            <span class="text-blue-400 font-semibold">🔵 경찰</span>
-            <div class="flex items-center gap-1.5">
-              <button onclick="changeRole('police', -1)" class="w-5 h-5 bg-zinc-800 rounded font-bold">-</button>
-              <span id="role-police" class="w-3 text-center font-bold">1</span>
-              <button onclick="changeRole('police', 1)" class="w-5 h-5 bg-zinc-800 rounded font-bold">+</button>
-            </div>
-          </div>
-          <div class="flex justify-between items-center p-2 bg-zinc-950 rounded-lg border border-zinc-800">
-            <span class="text-emerald-400 font-semibold">🟢 의사</span>
-            <div class="flex items-center gap-1.5">
-              <button onclick="changeRole('doctor', -1)" class="w-5 h-5 bg-zinc-800 rounded font-bold">-</button>
-              <span id="role-doctor" class="w-3 text-center font-bold">1</span>
-              <button onclick="changeRole('doctor', 1)" class="w-5 h-5 bg-zinc-800 rounded font-bold">+</button>
-            </div>
-          </div>
-          <div class="flex justify-between items-center p-2 bg-zinc-950 rounded-lg border border-zinc-800">
-            <span class="text-purple-400 font-semibold">🟣 영매</span>
-            <div class="flex items-center gap-1.5">
-              <button onclick="changeRole('medium', -1)" class="w-5 h-5 bg-zinc-800 rounded font-bold">-</button>
-              <span id="role-medium" class="w-3 text-center font-bold">1</span>
-              <button onclick="changeRole('medium', 1)" class="w-5 h-5 bg-zinc-800 rounded font-bold">+</button>
-            </div>
-          </div>
-          <div class="flex justify-between items-center p-2 bg-zinc-950 rounded-lg border border-zinc-800 col-span-2">
-            <span class="text-zinc-300 font-semibold">⚪ 시민</span>
-            <div class="flex items-center gap-1.5">
-              <button onclick="changeRole('citizen', -1)" class="w-5 h-5 bg-zinc-800 rounded font-bold">-</button>
-              <span id="role-citizen" class="w-3 text-center font-bold">3</span>
-              <button onclick="changeRole('citizen', 1)" class="w-5 h-5 bg-zinc-800 rounded font-bold">+</button>
-            </div>
-          </div>
-        </div>
-
-        <button id="assign-btn" onclick="startGame()" class="w-full py-3.5 bg-blue-600 hover:bg-blue-500 font-bold rounded-xl text-sm transition">역할 부여 및 게임 시작</button>
-      </div>
-
-      <!-- 진행 보드 -->
-      <div id="game-panel" class="hidden space-y-4 flex-1 flex flex-col justify-between">
-        <div class="p-4 bg-zinc-950 border border-zinc-800 rounded-xl space-y-2 text-center">
-          <span id="phase-badge" class="px-3 py-1 bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-md text-xs font-bold">낮 토론 단계</span>
-          <div id="announcement-text" class="text-base font-bold text-zinc-100 mt-2">
-            자유롭게 토론을 진행한 후 투표를 진행해주세요.
-          </div>
-        </div>
-
-        <!-- 밤 능력 현황판 -->
-        <div id="night-status-card" class="hidden bg-indigo-950/40 p-3 rounded-xl border border-indigo-800/60 space-y-2">
-          <div class="text-xs font-bold text-indigo-300">🌙 밤 능력 실시간 완료 현황</div>
-          <div class="grid grid-cols-2 gap-2 text-xs">
-            <div id="st-mafia" class="p-2 bg-zinc-950 rounded border border-zinc-800 flex justify-between">
-              <span>🔴 마피아</span> <span id="st-mafia-val">⏳ 진행중</span>
-            </div>
-            <div id="st-doctor" class="p-2 bg-zinc-950 rounded border border-zinc-800 flex justify-between">
-              <span>🟢 의사</span> <span id="st-doctor-val">⏳ 진행중</span>
-            </div>
-            <div id="st-police" class="p-2 bg-zinc-950 rounded border border-zinc-800 flex justify-between">
-              <span>🔵 경찰</span> <span id="st-police-val">⏳ 진행중</span>
-            </div>
-            <div id="st-medium" class="p-2 bg-zinc-950 rounded border border-zinc-800 flex justify-between">
-              <span>🟣 영매</span> <span id="st-medium-val">⏳ 진행중</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- 낮 투표 제어 -->
-        <div id="day-controls" class="space-y-3 bg-zinc-950/40 p-3 rounded-xl border border-zinc-800/50">
-          <label class="text-xs text-zinc-400 block font-semibold">낮 투표 처형 대상 선택</label>
-          <div class="flex gap-2">
-            <select id="vote-target" class="flex-1 p-2 bg-zinc-950 border border-zinc-800 rounded-lg text-xs">
-            </select>
-            <button onclick="executePlayer()" class="px-4 py-2 bg-red-600 hover:bg-red-500 rounded-lg text-xs font-bold">처형</button>
-          </div>
-        </div>
-
-        <!-- 버튼 제어 -->
-        <div class="flex gap-2 border-t border-zinc-800 pt-3">
-          <button id="night-btn" onclick="goNight()" class="flex-1 py-3 bg-indigo-600 hover:bg-indigo-500 font-bold rounded-xl text-sm transition">🌙 밤으로 진행</button>
-          <button id="day-btn" onclick="goDay()" class="hidden flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 font-bold rounded-xl text-sm transition">☀️ 밤 결과 발표 & 낮 진행</button>
-          <button onclick="resetGame()" class="px-4 py-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 font-bold rounded-xl text-xs">게임 리셋</button>
-        </div>
-      </div>
-
+    <div class="controls">
+      <button id="btnAssign" class="btn-primary" onclick="assignRoles()">역할 배정 및 게임 시작</button>
+      <button id="btnStartNight" class="btn-warning" onclick="startNight()" disabled>밤으로 전환</button>
+      <button id="btnResolveNight" class="btn-success" onclick="resolveNight()" disabled>밤 결과 처리 (낮으로)</button>
+      <button id="btnReset" class="btn-danger" onclick="resetRoles()">게임 초기화</button>
     </div>
 
+    <div id="nightStatusPanel" class="night-status-panel" style="display: none;">
+      <div class="night-status-title">🌙 밤 진행 상태 (직업별 입력 완료 여부)</div>
+      <div class="night-status-grid">
+        <div class="night-status-item">마피아: <span id="stMafia" class="status-waiting">대기중</span></div>
+        <div class="night-status-item">의사: <span id="stDoctor" class="status-waiting">대기중</span></div>
+        <div class="night-status-item">경찰: <span id="stPolice" class="status-waiting">대기중</span></div>
+        <div class="night-status-item">영매: <span id="stMedium" class="status-waiting">대기중</span></div>
+      </div>
+    </div>
+
+    <h2 style="margin-bottom: 15px; font-size: 18px; color: #ddd;">참가자 목록</h2>
+    <ul id="playerList" class="player-list"></ul>
   </div>
 
-  <!-- QR 모달 -->
-  <div id="qr-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50" onclick="closeQrModal()">
-    <div class="bg-zinc-900 border border-zinc-800 p-6 rounded-2xl text-center space-y-4 max-w-xs w-full" onclick="event.stopPropagation()">
-      <h3 class="text-base font-bold text-white">참가용 QR 코드</h3>
-      <div class="bg-white p-3 rounded-xl inline-block">
-        <img id="qr-large" src="" alt="QR Code" class="w-48 h-48 mx-auto">
-      </div>
-      <button onclick="closeQrModal()" class="w-full py-2 bg-zinc-800 font-bold rounded-lg text-xs">닫기</button>
-    </div>
-  </div>
-
-  <!-- 재접속 승인 모달 -->
-  <div id="rejoin-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
-    <div class="bg-zinc-900 border border-amber-500/50 p-6 rounded-2xl text-center space-y-4 max-w-sm w-full shadow-2xl">
-      <div class="text-amber-400 text-3xl">⚠️</div>
-      <h3 class="text-base font-bold text-white">재접속 요청 승인</h3>
-      <p id="rejoin-msg" class="text-xs text-zinc-300">
-        퇴장한 플레이어가 재접속을 요청했습니다.
-      </p>
-      <div class="flex gap-2 pt-2">
-        <button onclick="respondRejoin(false)" class="flex-1 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold rounded-lg text-xs">거절</button>
-        <button onclick="respondRejoin(true)" class="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs">승인</button>
+  <div id="rejoinModal" class="modal-overlay" style="display: none;">
+    <div class="modal">
+      <h3>재접속 요청</h3>
+      <p id="rejoinMsg">----님이 재접속을 요청했습니다.</p>
+      <div class="modal-btns">
+        <button class="btn-success" onclick="respondRejoin(true)">승인</button>
+        <button class="btn-danger" onclick="respondRejoin(false)">거절</button>
       </div>
     </div>
   </div>
 
   <script>
     const socket = io();
-    let playersData = [];
-    let roles = { mafia: 2, police: 1, doctor: 1, medium: 1, citizen: 3 };
-    let currentNightStatus = {};
-    let showRoles = false;
-    let pendingRejoinRequest = null;
+    let currentPhase = 'WAITING';
+    let isAssigned = false;
+    let hasExecutedToday = false;
+    let currentRejoinReq = null;
 
-    const roleNameMap = {
-      mafia: '🔴 마피아',
-      police: '🔵 경찰',
-      doctor: '🟢 의사',
-      medium: '🟣 영매',
-      citizen: '⚪ 시민'
-    };
-
-    // 호스트 등록
     socket.emit('register_host');
 
-    socket.on('init_state', ({ inviteCode }) => {
-      document.getElementById('invite-code').innerText = inviteCode;
-      const playUrl = `${window.location.origin}/play?code=${inviteCode}`;
-      const qrApi = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(playUrl)}`;
-      document.getElementById('qr-thumb').src = qrApi;
-      document.getElementById('qr-large').src = qrApi;
+    socket.on('init_state', (data) => {
+      document.getElementById('inviteCode').innerText = data.inviteCode;
+      currentPhase = data.currentPhase;
+      isAssigned = data.isAssigned;
+      hasExecutedToday = data.hasExecutedToday || false;
+      updateUIState();
+      renderPlayers(data.players);
     });
 
-    socket.on('update_players', ({ players }) => {
-      playersData = players;
-      document.getElementById('player-count').innerText = players.length;
-      renderPlayerList();
-      updateVoteDropdown();
-      updateTotal();
-      checkWinCondition();
+    socket.on('update_players', (data) => {
+      isAssigned = data.isAssigned;
+      hasExecutedToday = data.hasExecutedToday || false;
+      renderPlayers(data.players);
+      updateUIState();
     });
 
-    // 재접속 요청 수신 시 모달 표시
-    socket.on('rejoin_request', (data) => {
-      pendingRejoinRequest = data;
-      document.getElementById('rejoin-msg').innerHTML = `<b class="text-emerald-400">${data.nickname}</b> 님이 재접속을 요청했습니다.<br>승인하면 기존 직업과 상태로 복귀합니다.`;
-      document.getElementById('rejoin-modal').classList.remove('hidden');
+    socket.on('phase_change', (data) => {
+      currentPhase = data.phase;
+      
+      const badge = document.getElementById('phaseBadge');
+      const msg = document.getElementById('statusMsg');
+
+      if (data.phase === 'DAY') {
+        badge.innerText = '☀️ 낮 단계';
+        badge.style.background = '#443300';
+        badge.style.color = '#ffcc00';
+        msg.innerText = data.resultMsg || data.msg || '낮 토론을 진행해주세요.';
+        document.getElementById('nightStatusPanel').style.display = 'none';
+      } else if (data.phase === 'NIGHT') {
+        badge.innerText = '🌙 밤 단계';
+        badge.style.background = '#1a252f';
+        badge.style.color = '#3498db';
+        msg.innerText = data.msg || '밤이 되었습니다. 참가자들이 능력을 사용하는 중입니다.';
+        document.getElementById('nightStatusPanel').style.display = 'block';
+      }
+
+      updateUIState();
+      renderPlayers(window.latestPlayers || []);
+    });
+
+    socket.on('night_status_update', (status) => {
+      setNightStatus('stMafia', status.mafiaConfirmed);
+      setNightStatus('stDoctor', status.doctorConfirmed);
+      setNightStatus('stPolice', status.policeConfirmed);
+      setNightStatus('stMedium', status.mediumConfirmed);
+    });
+
+    function setNightStatus(elemId, isDone) {
+      const el = document.getElementById(elemId);
+      if (isDone) {
+        el.innerText = '완료';
+        el.className = 'status-done';
+      } else {
+        el.innerText = '대기중';
+        el.className = 'status-waiting';
+      }
+    }
+
+    socket.on('rejoin_request', (req) => {
+      currentRejoinReq = req;
+      document.getElementById('rejoinMsg').innerText = `'${req.nickname}'님이 재접속을 요청했습니다. 승인하시겠습니까?`;
+      document.getElementById('rejoinModal').style.display = 'flex';
     });
 
     function respondRejoin(approved) {
-      if (pendingRejoinRequest) {
+      if (currentRejoinReq) {
         socket.emit('rejoin_response', {
-          requestSocketId: pendingRejoinRequest.requestSocketId,
-          nickname: pendingRejoinRequest.nickname,
+          requestSocketId: currentRejoinReq.requestSocketId,
+          nickname: currentRejoinReq.nickname,
           approved
         });
-        pendingRejoinRequest = null;
+        currentRejoinReq = null;
       }
-      document.getElementById('rejoin-modal').classList.add('hidden');
+      document.getElementById('rejoinModal').style.display = 'none';
     }
 
-    function toggleRoleVisibility() {
-      showRoles = !showRoles;
-      const btn = document.getElementById('toggle-role-btn');
-      btn.innerText = showRoles ? '🙈 직업 숨기기' : '👁️ 직업 보기';
-      renderPlayerList();
-    }
+    function renderPlayers(players) {
+      window.latestPlayers = players;
+      document.getElementById('playerCount').innerText = players.length;
+      const listEl = document.getElementById('playerList');
+      listEl.innerHTML = '';
 
-    function renderPlayerList() {
-      document.getElementById('player-list').innerHTML = playersData.map(p => {
-        let nameColor = 'text-white';
-        let statusText = '생존';
-        let statusColor = 'text-emerald-400';
+      const roleMap = {
+        mafia: '🔴 마피아',
+        doctor: '🟢 의사',
+        police: '🔵 경찰',
+        medium: '🟣 영매',
+        citizen: '⚪ 시민'
+      };
 
-        if (!p.isConnected) {
-          nameColor = 'text-zinc-500 line-through';
-          statusText = '나감';
-          statusColor = 'text-zinc-500';
-        } else if (!p.isAlive) {
-          nameColor = 'text-zinc-500 line-through';
-          statusText = '사망';
-          statusColor = 'text-red-500';
-        }
+      players.forEach(p => {
+        const li = document.createElement('li');
+        li.className = `player-item ${p.isAlive ? '' : 'dead'}`;
 
-        const roleBadge = (showRoles && p.role) ? `<span class="text-[10px] text-zinc-400 ml-1">(${roleNameMap[p.role] || p.role})</span>` : '';
+        const roleText = (isAssigned && p.role) ? ` [${roleMap[p.role] || p.role}]` : '';
+        const offlineText = p.isConnected ? '' : ' <span class="offline-tag">(연결 끊김)</span>';
 
-        return `
-          <div class="flex justify-between items-center p-2 bg-zinc-950 rounded-lg border border-zinc-800">
-            <span class="font-medium ${nameColor}">
-              ${p.nickname}${roleBadge}
+        // 처형 버튼 비활성화 조건: 낮이 아니거나, 사망했거나, 이미 오늘 처형을 완료했을 때
+        const canKill = currentPhase === 'DAY' && p.isAlive && !hasExecutedToday;
+
+        li.innerHTML = `
+          <div class="player-info">
+            <span class="player-status ${p.isAlive ? 'status-alive' : 'status-dead'}">
+              ${p.isAlive ? '생존' : '사망'}
             </span>
-            <span class="text-[10px] font-semibold ${statusColor}">
-              ${statusText}
-            </span>
+            <strong>${p.nickname}</strong>${roleText}${offlineText}
+          </div>
+          <div>
+            ${p.isAlive ? `<button class="btn-danger" onclick="killPlayer('${p.id}')" ${canKill ? '' : 'disabled'}>처형</button>` : ''}
           </div>
         `;
-      }).join('');
+        listEl.appendChild(li);
+      });
     }
 
-    socket.on('night_status_update', (st) => {
-      currentNightStatus = st;
-      document.getElementById('st-mafia-val').innerText = st.mafiaConfirmed ? '✅ 완료' : '⏳ 진행중';
-      document.getElementById('st-doctor-val').innerText = st.doctorConfirmed ? '✅ 완료' : '⏳ 진행중';
-      document.getElementById('st-police-val').innerText = st.policeConfirmed ? '✅ 완료' : '⏳ 진행중';
-      document.getElementById('st-medium-val').innerText = st.mediumConfirmed ? '✅ 완료' : '⏳ 진행중';
-    });
+    function updateUIState() {
+      document.getElementById('btnAssign').disabled = isAssigned;
+      document.getElementById('roleSetup').style.opacity = isAssigned ? '0.5' : '1';
+      
+      const roleInputs = document.querySelectorAll('#roleSetup input');
+      roleInputs.forEach(input => input.disabled = isAssigned);
 
-    socket.on('phase_change', ({ phase, msg, resultMsg }) => {
-      const badge = document.getElementById('phase-badge');
-      const text = document.getElementById('announcement-text');
-      const nightCard = document.getElementById('night-status-card');
-
-      if (phase === 'NIGHT') {
-        badge.innerText = "🌙 밤 단계";
-        badge.className = "px-3 py-1 bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 rounded-md text-xs font-bold";
-        text.innerText = msg;
-        nightCard.classList.remove('hidden');
-        document.getElementById('night-btn').classList.add('hidden');
-        document.getElementById('day-btn').classList.remove('hidden');
-        document.getElementById('day-controls').classList.add('hidden');
-      } else {
-        badge.innerText = "☀️ 낮 단계";
-        badge.className = "px-3 py-1 bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-md text-xs font-bold";
-        text.innerText = resultMsg || msg || "자유로운 토론을 시작하세요.";
-        nightCard.classList.add('hidden');
-        document.getElementById('night-btn').classList.remove('hidden');
-        document.getElementById('day-btn').classList.add('hidden');
-        document.getElementById('day-controls').classList.remove('hidden');
-      }
-    });
-
-    function updateVoteDropdown() {
-      const select = document.getElementById('vote-target');
-      if (!select) return;
-      const alive = playersData.filter(p => p.isAlive && p.isConnected);
-      select.innerHTML = '<option value="">처형 대상 선택</option>' + alive.map(p => `<option value="${p.id}">${p.nickname}</option>`).join('');
+      document.getElementById('btnStartNight').disabled = !isAssigned || currentPhase !== 'DAY';
+      document.getElementById('btnResolveNight').disabled = !isAssigned || currentPhase !== 'NIGHT';
     }
 
-    function changeRole(role, delta) {
-      if (roles[role] + delta < 0) return;
-      roles[role] += delta;
-      document.getElementById(`role-${role}`).innerText = roles[role];
-      updateTotal();
+    function assignRoles() {
+      const roleConfig = {
+        mafia: parseInt(document.getElementById('roleMafia').value) || 0,
+        doctor: parseInt(document.getElementById('roleDoctor').value) || 0,
+        police: parseInt(document.getElementById('rolePolice').value) || 0,
+        medium: parseInt(document.getElementById('roleMedium').value) || 0,
+        citizen: parseInt(document.getElementById('roleCitizen').value) || 0
+      };
+
+      socket.emit('assign_roles', roleConfig);
     }
 
-    function applyDefaultPreset() {
-      Object.assign(roles, { mafia: 2, police: 1, doctor: 1, medium: 1, citizen: 3 });
-      for (const key in roles) document.getElementById(`role-${key}`).innerText = roles[key];
-      updateTotal();
+    function startNight() {
+      socket.emit('start_night');
     }
 
-    function updateTotal() {
-      const total = Object.values(roles).reduce((a, b) => a + b, 0);
-      document.getElementById('total-roles').innerText = total;
-      const assignBtn = document.getElementById('assign-btn');
-      if (total !== playersData.length) {
-        assignBtn.disabled = true;
-        assignBtn.className = "w-full py-3.5 bg-zinc-800 text-zinc-500 font-bold rounded-xl cursor-not-allowed text-xs";
-        assignBtn.innerText = `인원 불일치 (선택: ${total}명 / 접속: ${playersData.length}명)`;
-      } else {
-        assignBtn.disabled = false;
-        assignBtn.className = "w-full py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl shadow-lg transition text-sm cursor-pointer";
-        assignBtn.innerText = "역할 부여 및 게임 시작";
+    function resolveNight() {
+      socket.emit('resolve_night');
+    }
+
+    function killPlayer(playerId) {
+      if (confirm('해당 플레이어를 처형하시겠습니까?')) {
+        socket.emit('kill_player', playerId);
       }
     }
 
-    function startGame() {
-      socket.emit('assign_roles', roles);
-      document.getElementById('setup-panel').classList.add('hidden');
-      document.getElementById('game-panel').classList.remove('hidden');
-    }
-
-    function goNight() { socket.emit('start_night'); }
-
-    function goDay() { 
-      const st = currentNightStatus;
-      const isAllConfirmed = st.mafiaConfirmed && st.doctorConfirmed && st.policeConfirmed && st.mediumConfirmed;
-
-      if (!isAllConfirmed) {
-        if (!confirm('아직 능력을 확정하지 않은 직업이 있습니다. 정말 진행하시겠습니까?')) {
-          return;
-        }
-      }
-      socket.emit('resolve_night'); 
-    }
-
-    function executePlayer() {
-      const targetId = document.getElementById('vote-target').value;
-      if (!targetId) return alert('처형할 플레이어를 선택하세요.');
-      const p = playersData.find(item => item.id === targetId);
-      if (confirm(`${p.nickname}님을 처형하시겠습니까?`)) {
-        socket.emit('kill_player', targetId);
-      }
-    }
-
-    function checkWinCondition() {
-      if (playersData.length === 0) return;
-      const alive = playersData.filter(p => p.isAlive && p.isConnected && p.role);
-      if (alive.length === 0) return;
-
-      const mafias = alive.filter(p => p.role === 'mafia').length;
-      const citizens = alive.length - mafias;
-
-      if (mafias === 0) {
-        document.getElementById('announcement-text').innerHTML = "<span class='text-emerald-400 font-extrabold text-2xl'>🎉 시민 팀 승리! 🎉</span>";
-      } else if (mafias >= citizens) {
-        document.getElementById('announcement-text').innerHTML = "<span class='text-red-500 font-extrabold text-2xl'>🔴 마피아 팀 승리! 🔴</span>";
-      }
-    }
-
-    function resetGame() {
-      socket.emit('reset_roles');
-      document.getElementById('setup-panel').classList.remove('hidden');
-      document.getElementById('game-panel').classList.add('hidden');
-    }
-
-    function openQrModal() { document.getElementById('qr-modal').classList.remove('hidden'); }
-    function closeQrModal() { document.getElementById('qr-modal').classList.add('hidden'); }
-
-    function toggleFullScreen() {
-      if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen().catch(err => {
-          alert(`전체화면 모드를 켤 수 없습니다: ${err.message}`);
-        });
-      } else {
-        if (document.exitFullscreen) {
-          document.exitFullscreen();
-        }
+    function resetRoles() {
+      if (confirm('게임 상태를 초기화하고 모든 참가자 목록을 리셋하시겠습니까?')) {
+        socket.emit('reset_roles');
       }
     }
   </script>
