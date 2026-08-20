@@ -18,7 +18,7 @@ let inviteCode = Math.random().toString(36).substring(2, 6).toUpperCase();
 let isAssigned = false;
 let currentPhase = 'WAITING';
 let hostSocketId = null;
-let hasExecutedToday = false;
+let hasExecutedToday = false; // 오늘 낮 처형 여부
 
 let nightActions = {
   mafiaVotes: {},
@@ -72,13 +72,18 @@ function broadcastNightStatus() {
   });
 }
 
+// 플레이어 현황 및 처형 완료 여부 방송
+function broadcastPlayerUpdate() {
+  io.emit('update_players', { players, isAssigned, hasExecutedToday });
+}
+
 io.on('connection', (socket) => {
   socket.on('register_host', () => {
     hostSocketId = socket.id;
-    socket.emit('init_state', { players, inviteCode, isAssigned, currentPhase });
+    socket.emit('init_state', { players, inviteCode, isAssigned, currentPhase, hasExecutedToday });
   });
 
-  socket.emit('init_state', { players, inviteCode, isAssigned, currentPhase });
+  socket.emit('init_state', { players, inviteCode, isAssigned, currentPhase, hasExecutedToday });
 
   socket.on('join_game', ({ nickname, code }) => {
     if (code !== inviteCode) return socket.emit('join_error', '초대코드가 일치하지 않습니다.');
@@ -108,7 +113,7 @@ io.on('connection', (socket) => {
     const player = { id: socket.id, nickname: cleanName, role: null, isAlive: true, isConnected: true };
     players.push(player);
     socket.emit('join_success');
-    io.emit('update_players', { players, isAssigned });
+    broadcastPlayerUpdate();
   });
 
   socket.on('rejoin_response', ({ requestSocketId, nickname, approved }) => {
@@ -131,7 +136,7 @@ io.on('connection', (socket) => {
         mafiaPartners: player.role === 'mafia' ? mafias : []
       });
 
-      io.emit('update_players', { players, isAssigned });
+      broadcastPlayerUpdate();
     }
   });
 
@@ -164,7 +169,7 @@ io.on('connection', (socket) => {
     currentPhase = 'DAY';
     hasExecutedToday = false;
     resetNightActions();
-    io.emit('update_players', { players, isAssigned });
+    broadcastPlayerUpdate();
     io.emit('phase_change', { phase: 'DAY', msg: '게임이 시작되었습니다! 낮 토론을 진행해주세요.' });
   });
 
@@ -273,7 +278,7 @@ io.on('connection', (socket) => {
   socket.on('resolve_night', () => {
     clearFakeTimers();
     currentPhase = 'DAY';
-    hasExecutedToday = false;
+    hasExecutedToday = false; // 새로운 낮이 되었으므로 처형 기회 초기화
 
     const mafias = players.filter(p => p.isAlive && p.isConnected && p.role === 'mafia');
     const votes = Object.values(nightActions.mafiaVotes);
@@ -306,27 +311,24 @@ io.on('connection', (socket) => {
       resultMsg = "마피아의 의견이 일치하지 않았거나 공격하지 않아 간밤에 아무 일도 일어나지 않았습니다.";
     }
 
-    io.emit('update_players', { players, isAssigned });
+    broadcastPlayerUpdate();
     io.emit('phase_change', { phase: 'DAY', resultMsg });
   });
 
-  // 처형 처리 (낮 동안 1회 제한)
+  // 처형 처리 (낮 동안 1회 제한 및 진영 단위 공개)
   socket.on('kill_player', (playerId) => {
-    if (currentPhase !== 'DAY') return;
-    if (hasExecutedToday) {
-      return socket.emit('execution_error', '이번 낮에는 이미 처형을 진행했습니다.');
-    }
+    if (currentPhase !== 'DAY' || hasExecutedToday) return;
 
     const p = players.find(item => item.id === playerId);
     if (p && p.isAlive) {
       p.isAlive = false;
-      hasExecutedToday = true;
+      hasExecutedToday = true; // 처형 완료 처리
       
       const sideName = (p.role === 'mafia') ? '🔴 마피아' : '⚪ 시민';
       const hostMsg = `투표 결과로 ${p.nickname}님이 처형되었습니다. (${p.nickname}의 진영: ${sideName})`;
 
       io.to(p.id).emit('player_died');
-      io.emit('update_players', { players, isAssigned });
+      broadcastPlayerUpdate();
 
       if (hostSocketId) {
         io.to(hostSocketId).emit('phase_change', { phase: 'DAY', resultMsg: hostMsg });
@@ -344,7 +346,7 @@ io.on('connection', (socket) => {
     resetNightActions();
     
     io.emit('roles_reset');
-    io.emit('update_players', { players, isAssigned });
+    broadcastPlayerUpdate();
   });
 
   socket.on('disconnect', () => {
@@ -354,7 +356,7 @@ io.on('connection', (socket) => {
     const p = players.find(item => item.id === socket.id);
     if (p) {
       p.isConnected = false;
-      io.emit('update_players', { players, isAssigned });
+      broadcastPlayerUpdate();
     }
   });
 });
