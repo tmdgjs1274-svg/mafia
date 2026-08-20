@@ -9,9 +9,14 @@
 </head>
 <body class="bg-zinc-950 text-white min-h-screen p-4 flex items-center justify-center relative">
 
-  <button onclick="toggleFullScreen()" class="absolute top-4 right-4 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold rounded-lg text-xs flex items-center gap-1 shadow-lg transition z-10">
-    🖥️ 전체화면
-  </button>
+  <div class="absolute top-4 right-4 flex gap-2 z-10">
+    <button onclick="createNewRoom()" class="px-3 py-1.5 bg-red-800 hover:bg-red-700 text-white font-bold rounded-lg text-xs flex items-center gap-1 shadow-lg transition">
+      🔄 새 방 만들기
+    </button>
+    <button onclick="toggleFullScreen()" class="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold rounded-lg text-xs flex items-center gap-1 shadow-lg transition">
+      🖥️ 전체화면
+    </button>
+  </div>
 
   <div class="w-full max-w-4xl bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-2xl grid grid-cols-1 md:grid-cols-12 gap-6">
     
@@ -199,7 +204,16 @@
       const qrApi = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(playUrl)}`;
       document.getElementById('qr-thumb').src = qrApi;
       document.getElementById('qr-large').src = qrApi;
+
+      document.getElementById('setup-panel').classList.remove('hidden');
+      document.getElementById('game-panel').classList.add('hidden');
     });
+
+    function createNewRoom() {
+      if (confirm('완전 새로운 방을 만드시겠습니까? (기존 초대 코드 및 이전 방 정보가 사라집니다)')) {
+        socket.emit('create_new_room');
+      }
+    }
 
     socket.on('update_players', ({ players }) => {
       playersData = players;
@@ -300,7 +314,6 @@
       }
     });
 
-    // [추가] 실시간 게임 종료 수신 시 호스트 화면 표시
     socket.on('game_over', ({ winner }) => {
       const text = document.getElementById('announcement-text');
       document.getElementById('night-status-card').classList.add('hidden');
