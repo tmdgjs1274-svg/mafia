@@ -2,139 +2,91 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>마피아 게임 - 참가자</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f0f2f5;
-            margin: 0;
-            padding: 20px;
-        }
-        .container {
-            max-width: 500px;
-            margin: 0 auto;
-            background: #fff;
-            padding: 20px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
-        }
-        h1, h2 {
-            border-bottom: 2px solid #333;
-            padding-bottom: 5px;
-        }
-        .status-box {
-            background: #e9ecef;
-            padding: 15px;
-            margin-bottom: 20px;
-            text-align: center;
-        }
-        .status-box .phase {
-            font-size: 20px;
-            font-weight: bold;
-            color: #007bff;
-        }
-        .role-box {
-            background: #f8f9fa;
-            border: 1px solid #ddd;
-            padding: 15px;
-            margin-bottom: 20px;
-            text-align: center;
-        }
-        .my-role {
-            font-size: 18px;
-            font-weight: bold;
-            color: #dc3545;
-        }
-        .player-list {
-            list-style: none;
-            padding: 0;
-        }
-        .player-item {
-            padding: 10px;
-            border-bottom: 1px solid #ddd;
-            display: flex;
-            justify-content: space-between;
-        }
-        .player-item.dead {
-            background-color: #ffe6e6;
-            color: #888;
-            text-decoration: line-through;
-        }
-        .logs {
-            background: #333;
-            color: #fff;
-            padding: 10px;
-            height: 120px;
-            overflow-y: scroll;
-            font-family: monospace;
-            margin-top: 15px;
-        }
-    </style>
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-    <div class="container">
-        <h1>마피아 게임</h1>
+<body class="bg-gray-100 text-gray-800 p-4">
+    <div class="max-w-md mx-auto bg-white p-6 rounded-lg shadow-md space-y-6">
+        <h1 class="text-xl font-bold text-center border-b pb-3">마피아 게임</h1>
 
-        <div class="status-box">
-            현재 상태: <span class="phase" id="game-phase">대기 중</span>
+        <!-- 입장 영역 -->
+        <div id="join-box" class="space-y-4">
+            <div>
+                <label class="block text-sm font-semibold mb-1">닉네임</label>
+                <input type="text" id="nickname" class="w-full border rounded p-2 text-sm" placeholder="닉네임을 입력하세요">
+            </div>
+            <button onclick="joinGame()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded">입장하기</button>
         </div>
 
-        <div class="role-box">
-            내 직업: <span class="my-role" id="my-role">게임 시작 전</span>
-        </div>
+        <!-- 게임 진행 영역 -->
+        <div id="game-box" class="hidden space-y-4">
+            <div class="bg-gray-50 p-3 rounded text-center font-semibold">
+                단계: <span id="phase-text" class="text-blue-600">대기 중</span> 
+                (<span id="day-text">1</span>일차)
+            </div>
 
-        <h2>참여자 현황</h2>
-        <ul class="player-list" id="players">
-            <li class="player-item" id="player-1">
-                <span>플레이어 1</span>
-                <span class="status">생존</span>
-            </li>
-            <li class="player-item" id="player-2">
-                <span>플레이어 2</span>
-                <span class="status">생존</span>
-            </li>
-        </ul>
+            <div class="bg-yellow-50 border border-yellow-200 text-yellow-800 p-4 rounded text-center">
+                <div class="text-xs">내 직업</div>
+                <div id="my-role" class="text-xl font-bold mt-1">대기 중</div>
+            </div>
 
-        <h2>게임 기록</h2>
-        <div class="logs" id="log-box">
-            [시스템] 방에 입장했습니다.<br>
+            <div>
+                <h3 class="font-bold text-sm mb-2">플레이어 현황</h3>
+                <ul id="player-list" class="divide-y border rounded text-sm"></ul>
+            </div>
+
+            <div>
+                <h3 class="font-bold text-sm mb-1">게임 로그</h3>
+                <div id="log-box" class="w-full h-32 bg-gray-900 text-green-400 p-2 rounded font-mono text-xs overflow-y-auto whitespace-pre-wrap"></div>
+            </div>
         </div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
+        let myName = '';
 
-        // 게임 단계 변경 수신 (낮/밤)
-        socket.on('phaseChange', (data) => {
-            document.getElementById('game-phase').innerText = data.phase;
-            appendLog(`[알림] ${data.phase}(이)가 되었습니다.`);
-        });
+        function joinGame() {
+            const nickname = document.getElementById('nickname').value.trim();
+            if (!nickname) return alert('닉네임을 입력하세요.');
+            
+            myName = nickname;
+            socket.emit('joinGame', { nickname });
+        }
 
-        // 역할 부여 수신
-        socket.on('assignRole', (data) => {
-            document.getElementById('my-role').innerText = data.role;
-            appendLog(`[시스템] 당신의 직업은 [${data.role}] 입니다.`);
-        });
-
-        // 플레이어 사망/처형 처리
-        socket.on('playerDied', (data) => {
-            const playerEl = document.getElementById(data.playerId);
-            if (playerEl) {
-                playerEl.classList.add('dead');
-                playerEl.querySelector('.status').innerText = '사망';
+        socket.on('joinResponse', (res) => {
+            if (res.success) {
+                document.getElementById('join-box').classList.add('hidden');
+                document.getElementById('game-box').classList.remove('hidden');
+            } else {
+                alert(res.message);
             }
         });
 
-        // 공통 로그 처리
-        socket.on('log', (msg) => {
-            appendLog(msg);
+        socket.on('roleAssigned', (data) => {
+            document.getElementById('my-role').innerText = data.role;
         });
 
-        function appendLog(msg) {
+        socket.on('roomUpdate', (state) => {
+            document.getElementById('phase-text').innerText = state.phase === 'day' ? '낮' : (state.phase === 'night' ? '밤' : '대기 중');
+            document.getElementById('day-text').innerText = state.dayCount;
+
+            const listEl = document.getElementById('player-list');
+            listEl.innerHTML = Object.values(state.players).map(p => `
+                <li class="p-2 flex justify-between items-center ${p.isAlive ? '' : 'bg-red-50 text-red-400 line-through'}">
+                    <span>${p.nickname} ${p.nickname === myName ? '(나)' : ''}</span>
+                    <span class="text-xs">${p.isAlive ? '생존' : '사망'}</span>
+                </li>
+            `).join('');
+        });
+
+        socket.on('systemLog', (msg) => {
             const logBox = document.getElementById('log-box');
-            logBox.innerHTML += `${msg}<br>`;
+            logBox.innerText += msg + '\n';
             logBox.scrollTop = logBox.scrollHeight;
-        }
+        });
     </script>
 </body>
 </html>
