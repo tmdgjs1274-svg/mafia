@@ -131,10 +131,8 @@
         <div id="day-controls" class="space-y-3 bg-zinc-950/40 p-3 rounded-xl border border-zinc-800/50">
           <label class="text-xs text-zinc-400 block font-semibold">낮 투표 처형 대상 선택</label>
           <div class="flex gap-2">
-            <!-- disabled:opacity-50 클래스 추가 -->
             <select id="vote-target" class="flex-1 p-2 bg-zinc-950 border border-zinc-800 rounded-lg text-xs disabled:opacity-50 disabled:cursor-not-allowed">
             </select>
-            <!-- 처형 완료시 비활성화 스타일 적용 -->
             <button id="execute-btn" onclick="executePlayer()" class="px-4 py-2 bg-red-600 hover:bg-red-500 disabled:bg-zinc-800 disabled:text-zinc-500 disabled:cursor-not-allowed rounded-lg text-xs font-bold transition">처형</button>
           </div>
         </div>
@@ -193,7 +191,6 @@
       citizen: '⚪ 시민'
     };
 
-    // 호스트 등록
     socket.emit('register_host');
 
     socket.on('init_state', ({ inviteCode }) => {
@@ -213,7 +210,6 @@
       checkWinCondition();
     });
 
-    // 재접속 요청 수신 시 모달 표시
     socket.on('rejoin_request', (data) => {
       pendingRejoinRequest = data;
       document.getElementById('rejoin-msg').innerHTML = `<b class="text-emerald-400">${data.nickname}</b> 님이 재접속을 요청했습니다.<br>승인하면 기존 직업과 상태로 복귀합니다.`;
@@ -300,19 +296,16 @@
         document.getElementById('day-btn').classList.add('hidden');
         document.getElementById('day-controls').classList.remove('hidden');
         
-        // 새 낮이 시작되면 투표 버튼 다시 활성화
         document.getElementById('execute-btn').disabled = false;
         document.getElementById('vote-target').disabled = false;
       }
     });
 
-    // 이미 처형된 상태라면 서버에서 오류 메시지를 보내줌, 이에 맞게 버튼 잠금
     socket.on('execution_error', (msg) => {
         document.getElementById('execute-btn').disabled = true;
         document.getElementById('vote-target').disabled = true;
     });
 
-    // 정상적으로 처형이 성공했을 때도 버튼 잠금
     socket.on('execution_success', () => {
         document.getElementById('execute-btn').disabled = true;
         document.getElementById('vote-target').disabled = true;
@@ -382,17 +375,23 @@
       }
     }
 
+    // [수정] 승리 조건판단 보완 (마피아 0명 판정 포함)
     function checkWinCondition() {
       if (playersData.length === 0) return;
-      const alive = playersData.filter(p => p.isAlive && p.isConnected && p.role);
-      if (alive.length === 0) return;
+      
+      // 생존한 인원 및 역할 확인
+      const aliveWithRoles = playersData.filter(p => p.role && p.isAlive && p.isConnected);
+      if (aliveWithRoles.length === 0) return;
 
-      const mafias = alive.filter(p => p.role === 'mafia').length;
-      const citizens = alive.length - mafias;
+      const totalAssignedMafias = playersData.filter(p => p.role === 'mafia').length;
+      if (totalAssignedMafias === 0) return; // 아직 게임이 할당되지 않은 경우 예외 처리
 
-      if (mafias === 0) {
-        document.getElementById('announcement-text').innerHTML = "<span class='text-emerald-400 font-extrabold text-2xl'>🎉 시민 팀 승리! 🎉</span>";
-      } else if (mafias >= citizens) {
+      const aliveMafias = aliveWithRoles.filter(p => p.role === 'mafia').length;
+      const aliveCitizens = aliveWithRoles.length - aliveMafias;
+
+      if (aliveMafias === 0) {
+        document.getElementById('announcement-text').innerHTML = "<span class='text-emerald-400 font-extrabold text-2xl'>🎉 시민 팀 승리! (마피아 전멸) 🎉</span>";
+      } else if (aliveMafias >= aliveCitizens) {
         document.getElementById('announcement-text').innerHTML = "<span class='text-red-500 font-extrabold text-2xl'>🔴 마피아 팀 승리! 🔴</span>";
       }
     }
