@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>마피아 호스트 화면 (공용 보드)</title>
+  <title>마피아 호스트 화면</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="/socket.io/socket.io.js"></script>
 </head>
@@ -11,10 +11,10 @@
 
   <div class="w-full max-w-4xl bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-2xl grid grid-cols-1 md:grid-cols-12 gap-6">
     
-    <!-- LEFT PANEL: 방 정보 & 생존자 현황 -->
+    <!-- LEFT PANEL -->
     <div class="md:col-span-4 space-y-4 border-r border-zinc-800/80 pr-0 md:pr-4">
       <div>
-        <span class="text-xs text-emerald-400 font-bold uppercase tracking-wider">Game Dashboard</span>
+        <span class="text-xs text-emerald-400 font-bold uppercase tracking-wider">Host Dashboard</span>
         <h1 class="text-2xl font-bold">마피아 게임 보드</h1>
       </div>
 
@@ -37,10 +37,10 @@
       </div>
     </div>
 
-    <!-- RIGHT PANEL: 게임 상태 관리 및 진행 -->
+    <!-- RIGHT PANEL -->
     <div class="md:col-span-8 flex flex-col justify-between space-y-4">
       
-      <!-- 역할 설정 (게임 시작 전) -->
+      <!-- 역할 세팅 -->
       <div id="setup-panel" class="space-y-4">
         <div class="flex justify-between items-center border-b border-zinc-800 pb-2">
           <span class="text-xs text-zinc-400 font-semibold">역할 세팅 (총 <span id="total-roles" class="text-white font-bold">8</span>개)</span>
@@ -93,21 +93,39 @@
         <button id="assign-btn" onclick="startGame()" class="w-full py-3.5 bg-blue-600 hover:bg-blue-500 font-bold rounded-xl text-sm transition">역할 부여 및 게임 시작</button>
       </div>
 
-      <!-- 진행 보드 (게임 시작 후) -->
+      <!-- 진행 보드 -->
       <div id="game-panel" class="hidden space-y-4 flex-1 flex flex-col justify-between">
         <div class="p-4 bg-zinc-950 border border-zinc-800 rounded-xl space-y-2 text-center">
           <span id="phase-badge" class="px-3 py-1 bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-md text-xs font-bold">낮 토론 단계</span>
-          <div id="announcement-text" class="text-lg font-bold text-zinc-100 mt-2">
+          <div id="announcement-text" class="text-base font-bold text-zinc-100 mt-2">
             자유롭게 토론을 진행한 후 투표를 진행해주세요.
           </div>
         </div>
 
-        <!-- 낮 투표 제어 영역 -->
+        <!-- 실시간 능력 확정 현황 표시판 (밤 전용) -->
+        <div id="night-status-card" class="hidden bg-indigo-950/40 p-3 rounded-xl border border-indigo-800/60 space-y-2">
+          <div class="text-xs font-bold text-indigo-300">🌙 밤 능력 실시간 완료 현황</div>
+          <div class="grid grid-cols-2 gap-2 text-xs">
+            <div id="st-mafia" class="p-2 bg-zinc-950 rounded border border-zinc-800 flex justify-between">
+              <span>🔴 마피아 (만장일치)</span> <span id="st-mafia-val">⏳ 대기중</span>
+            </div>
+            <div id="st-doctor" class="p-2 bg-zinc-950 rounded border border-zinc-800 flex justify-between">
+              <span>🟢 의사</span> <span id="st-doctor-val">⏳ 대기중</span>
+            </div>
+            <div id="st-police" class="p-2 bg-zinc-950 rounded border border-zinc-800 flex justify-between">
+              <span>🔵 경찰</span> <span id="st-police-val">⏳ 대기중</span>
+            </div>
+            <div id="st-medium" class="p-2 bg-zinc-950 rounded border border-zinc-800 flex justify-between">
+              <span>🟣 영매</span> <span id="st-medium-val">⏳ 대기중</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 낮 투표 제어 -->
         <div id="day-controls" class="space-y-3 bg-zinc-950/40 p-3 rounded-xl border border-zinc-800/50">
           <label class="text-xs text-zinc-400 block font-semibold">낮 투표 처형 대상 선택</label>
           <div class="flex gap-2">
             <select id="vote-target" class="flex-1 p-2 bg-zinc-950 border border-zinc-800 rounded-lg text-xs">
-              <!-- JS 동적 등록 -->
             </select>
             <button onclick="executePlayer()" class="px-4 py-2 bg-red-600 hover:bg-red-500 rounded-lg text-xs font-bold">처형</button>
           </div>
@@ -166,14 +184,23 @@
       checkWinCondition();
     });
 
+    socket.on('night_status_update', (st) => {
+      document.getElementById('st-mafia-val').innerText = !st.hasMafia ? '없음' : (st.mafiaConfirmed ? '✅ 완료' : '⏳ 진행중');
+      document.getElementById('st-doctor-val').innerText = !st.hasDoctor ? '없음' : (st.doctorConfirmed ? '✅ 완료' : '⏳ 진행중');
+      document.getElementById('st-police-val').innerText = !st.hasPolice ? '없음' : (st.policeConfirmed ? '✅ 완료' : '⏳ 진행중');
+      document.getElementById('st-medium-val').innerText = !st.hasMedium ? '없음' : (st.mediumConfirmed ? '✅ 완료' : '⏳ 진행중');
+    });
+
     socket.on('phase_change', ({ phase, msg, resultMsg }) => {
       const badge = document.getElementById('phase-badge');
       const text = document.getElementById('announcement-text');
-      
+      const nightCard = document.getElementById('night-status-card');
+
       if (phase === 'NIGHT') {
         badge.innerText = "🌙 밤 단계";
         badge.className = "px-3 py-1 bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 rounded-md text-xs font-bold";
         text.innerText = msg;
+        nightCard.classList.remove('hidden');
         document.getElementById('night-btn').classList.add('hidden');
         document.getElementById('day-btn').classList.remove('hidden');
         document.getElementById('day-controls').classList.add('hidden');
@@ -181,6 +208,7 @@
         badge.innerText = "☀️ 낮 단계";
         badge.className = "px-3 py-1 bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-md text-xs font-bold";
         text.innerText = resultMsg || msg || "자유로운 토론을 시작하세요.";
+        nightCard.classList.add('hidden');
         document.getElementById('night-btn').classList.remove('hidden');
         document.getElementById('day-btn').classList.add('hidden');
         document.getElementById('day-controls').classList.remove('hidden');
