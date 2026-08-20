@@ -18,7 +18,7 @@ let inviteCode = Math.random().toString(36).substring(2, 6).toUpperCase();
 let isAssigned = false;
 let currentPhase = 'WAITING';
 let hostSocketId = null;
-let hasExecutedToday = false; // 오늘 낮 처형 여부
+let hasExecutedToday = false; // 오늘 낮 처형 여부 플래그
 
 let nightActions = {
   mafiaVotes: {},
@@ -277,7 +277,7 @@ io.on('connection', (socket) => {
   socket.on('resolve_night', () => {
     clearFakeTimers();
     currentPhase = 'DAY';
-    hasExecutedToday = false;
+    hasExecutedToday = false; // 새로운 낮 초기화
 
     const mafias = players.filter(p => p.isAlive && p.isConnected && p.role === 'mafia');
     const votes = Object.values(nightActions.mafiaVotes);
@@ -314,26 +314,22 @@ io.on('connection', (socket) => {
     io.emit('phase_change', { phase: 'DAY', resultMsg });
   });
 
+  // 처형 처리 (낮 동안 1회 제한 및 진영 단위 공개)
   socket.on('kill_player', (playerId) => {
     if (currentPhase !== 'DAY' || hasExecutedToday) return;
 
     const p = players.find(item => item.id === playerId);
     if (p && p.isAlive) {
       p.isAlive = false;
-      hasExecutedToday = true;
+      hasExecutedToday = true; // 처형 완료
       
       const sideName = (p.role === 'mafia') ? '🔴 마피아' : '⚪ 시민';
-      const hostMsg = `투표 결과로 ${p.nickname}님이 처형되었습니다. (${p.nickname}의 진영: ${sideName})`;
-      const publicMsg = `투표 결과로 ${p.nickname}님이 처형되었습니다. (${p.nickname}의 진영: ${sideName})`;
+      const msg = `투표 결과로 ${p.nickname}님이 처형되었습니다. (${p.nickname}의 진영: ${sideName})`;
 
       io.to(p.id).emit('player_died');
       broadcastPlayerUpdate();
 
-      if (hostSocketId) {
-        io.to(hostSocketId).emit('phase_change', { phase: 'DAY', resultMsg: hostMsg });
-      }
-
-      socket.broadcast.emit('phase_change', { phase: 'DAY', resultMsg: publicMsg });
+      io.emit('phase_change', { phase: 'DAY', resultMsg: msg });
     }
   });
 
