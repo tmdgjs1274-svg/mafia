@@ -1,92 +1,235 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>마피아 게임 - 참가자</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>마피아 플레이어</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/socket.io/socket.io.js"></script>
 </head>
-<body class="bg-gray-100 text-gray-800 p-4">
-    <div class="max-w-md mx-auto bg-white p-6 rounded-lg shadow-md space-y-6">
-        <h1 class="text-xl font-bold text-center border-b pb-3">마피아 게임</h1>
+<body class="bg-zinc-950 text-white min-h-screen p-4 flex flex-col items-center justify-center">
 
-        <!-- 입장 영역 -->
-        <div id="join-box" class="space-y-4">
-            <div>
-                <label class="block text-sm font-semibold mb-1">닉네임</label>
-                <input type="text" id="nickname" class="w-full border rounded p-2 text-sm" placeholder="닉네임을 입력하세요">
-            </div>
-            <button onclick="joinGame()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded">입장하기</button>
-        </div>
+  <!-- 로그인 화면 -->
+  <div id="join-card" class="w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-2xl p-6 space-y-4 shadow-2xl">
+    <div class="text-center space-y-1">
+      <span class="text-xs text-emerald-400 font-bold uppercase tracking-wider">Mafia Game</span>
+      <h1 class="text-2xl font-bold">참가하기</h1>
+    </div>
+    <div class="space-y-3">
+      <div>
+        <label class="text-xs text-zinc-400 font-semibold block mb-1">초대 코드</label>
+        <input id="input-code" type="text" placeholder="예: A1B2" class="w-full p-3 bg-zinc-950 border border-zinc-800 rounded-xl text-center text-lg font-black tracking-widest text-emerald-400 uppercase outline-none focus:border-emerald-500">
+      </div>
+      <div>
+        <label class="text-xs text-zinc-400 font-semibold block mb-1">닉네임</label>
+        <input id="input-nickname" type="text" placeholder="닉네임 입력" class="w-full p-3 bg-zinc-950 border border-zinc-800 rounded-xl text-sm outline-none focus:border-emerald-500">
+      </div>
+      <button onclick="joinGame()" class="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 font-bold rounded-xl text-sm transition shadow-lg">입장하기</button>
+    </div>
+    <div id="error-msg" class="text-xs text-red-500 text-center hidden"></div>
+  </div>
 
-        <!-- 게임 진행 영역 -->
-        <div id="game-box" class="hidden space-y-4">
-            <div class="bg-gray-50 p-3 rounded text-center font-semibold">
-                단계: <span id="phase-text" class="text-blue-600">대기 중</span> 
-                (<span id="day-text">1</span>일차)
-            </div>
-
-            <div class="bg-yellow-50 border border-yellow-200 text-yellow-800 p-4 rounded text-center">
-                <div class="text-xs">내 직업</div>
-                <div id="my-role" class="text-xl font-bold mt-1">대기 중</div>
-            </div>
-
-            <div>
-                <h3 class="font-bold text-sm mb-2">플레이어 현황</h3>
-                <ul id="player-list" class="divide-y border rounded text-sm"></ul>
-            </div>
-
-            <div>
-                <h3 class="font-bold text-sm mb-1">게임 로그</h3>
-                <div id="log-box" class="w-full h-32 bg-gray-900 text-green-400 p-2 rounded font-mono text-xs overflow-y-auto whitespace-pre-wrap"></div>
-            </div>
-        </div>
+  <!-- 대기실 / 게임 화면 -->
+  <div id="game-card" class="hidden w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-2xl p-6 space-y-4 shadow-2xl text-center">
+    <div>
+      <span id="player-nickname-display" class="text-sm font-bold text-zinc-400"></span>
+      <h2 id="role-title" class="text-2xl font-black mt-1">대기 중...</h2>
+      <div id="mafia-partners" class="text-xs text-red-400 mt-1 font-semibold hidden"></div>
     </div>
 
-    <script src="/socket.io/socket.io.js"></script>
-    <script>
-        const socket = io();
-        let myName = '';
+    <!-- 대기 알림 -->
+    <div id="waiting-msg" class="p-4 bg-zinc-950 rounded-xl text-xs text-zinc-400 border border-zinc-800">
+      호스트가 게임을 시작할 때까지 잠시 기다려주세요.
+    </div>
 
-        function joinGame() {
-            const nickname = document.getElementById('nickname').value.trim();
-            if (!nickname) return alert('닉네임을 입력하세요.');
-            
-            myName = nickname;
-            socket.emit('joinGame', { nickname });
+    <!-- 능력 사용 영역 -->
+    <div id="action-panel" class="hidden space-y-3 pt-2">
+      <div class="text-xs text-indigo-400 font-semibold">대상 플레이어 선택</div>
+      <select id="action-target" class="w-full p-3 bg-zinc-950 border border-zinc-800 rounded-xl text-xs outline-none">
+      </select>
+      <button id="action-btn" onclick="useAbility()" class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 font-bold rounded-xl text-xs transition">능력 사용</button>
+    </div>
+
+    <!-- 능력 결과 메시지 -->
+    <div id="ability-result" class="hidden p-3 bg-indigo-950/40 border border-indigo-800/60 rounded-xl text-xs text-indigo-200 font-medium"></div>
+  </div>
+
+  <script>
+    const socket = io();
+    let myRole = null;
+    let myNickname = '';
+    let isAlive = true;
+
+    // URL 파라미터 자동 입력
+    const urlParams = new URLSearchParams(window.location.search);
+    const codeParam = urlParams.get('code');
+    if (codeParam) {
+      document.getElementById('input-code').value = codeParam.toUpperCase();
+    }
+
+    function joinGame() {
+      const code = document.getElementById('input-code').value.trim().toUpperCase();
+      const nickname = document.getElementById('input-nickname').value.trim();
+
+      if (!code || !nickname) {
+        showError('초대 코드와 닉네임을 모두 입력해주세요.');
+        return;
+      }
+
+      myNickname = nickname;
+      socket.emit('join_game', { nickname, code });
+    }
+
+    function showError(msg) {
+      const err = document.getElementById('error-msg');
+      err.innerText = msg;
+      err.classList.remove('hidden');
+    }
+
+    socket.on('join_error', (msg) => {
+      showError(msg);
+    });
+
+    socket.on('join_success', () => {
+      document.getElementById('join-card').classList.add('hidden');
+      document.getElementById('game-card').classList.remove('hidden');
+      document.getElementById('player-nickname-display').innerText = myNickname;
+    });
+
+    // 호스트 승인 대기 안내
+    socket.on('rejoin_waiting', (msg) => {
+      document.getElementById('join-card').classList.add('hidden');
+      document.getElementById('game-card').classList.remove('hidden');
+      document.getElementById('player-nickname-display').innerText = myNickname;
+      document.getElementById('waiting-msg').innerText = msg;
+    });
+
+    // 호스트 승인 후 복구 이벤트
+    socket.on('rejoin_success', ({ role, isAlive: aliveStatus, currentPhase, mafiaPartners }) => {
+      myRole = role;
+      isAlive = aliveStatus;
+
+      const roleNames = {
+        mafia: '🔴 마피아',
+        police: '🔵 경찰',
+        doctor: '🟢 의사',
+        medium: '🟣 영매',
+        citizen: '⚪ 시민'
+      };
+
+      document.getElementById('role-title').innerText = roleNames[role] || role;
+
+      if (role === 'mafia' && mafiaPartners.length > 0) {
+        const partnersText = mafiaPartners.filter(p => p !== myNickname).join(', ');
+        const partnerEl = document.getElementById('mafia-partners');
+        partnerEl.innerText = partnersText ? `동료 마피아: ${partnersText}` : '당신은 유일한 마피아입니다.';
+        partnerEl.classList.remove('hidden');
+      }
+
+      if (!isAlive) {
+        document.getElementById('waiting-msg').innerText = '당신은 사망했습니다. 관전 모드로 전환됩니다.';
+      } else {
+        document.getElementById('waiting-msg').innerText = currentPhase === 'NIGHT' ? '밤 모드가 진행 중입니다.' : '낮 토론 모드가 진행 중입니다.';
+      }
+    });
+
+    socket.on('your_role', ({ role, isAlive: aliveStatus, mafiaPartners }) => {
+      myRole = role;
+      isAlive = aliveStatus;
+
+      const roleNames = {
+        mafia: '🔴 마피아',
+        police: '🔵 경찰',
+        doctor: '🟢 의사',
+        medium: '🟣 영매',
+        citizen: '⚪ 시민'
+      };
+
+      document.getElementById('role-title').innerText = roleNames[role] || role;
+      document.getElementById('waiting-msg').innerText = '낮 시간입니다. 토론을 진행하세요.';
+
+      if (role === 'mafia' && mafiaPartners.length > 0) {
+        const partnersText = mafiaPartners.filter(p => p !== myNickname).join(', ');
+        const partnerEl = document.getElementById('mafia-partners');
+        partnerEl.innerText = partnersText ? `동료 마피아: ${partnersText}` : '당신은 유일한 마피아입니다.';
+        partnerEl.classList.remove('hidden');
+      }
+    });
+
+    socket.on('night_started', ({ players }) => {
+      if (!isAlive) return;
+
+      document.getElementById('ability-result').classList.add('hidden');
+
+      if (['mafia', 'doctor', 'police', 'medium'].includes(myRole)) {
+        document.getElementById('action-panel').classList.remove('hidden');
+        document.getElementById('waiting-msg').classList.add('hidden');
+
+        const select = document.getElementById('action-target');
+        
+        let validTargets = [];
+        if (myRole === 'medium') {
+          validTargets = players.filter(p => !p.isAlive);
+        } else {
+          validTargets = players.filter(p => p.isAlive);
         }
 
-        socket.on('joinResponse', (res) => {
-            if (res.success) {
-                document.getElementById('join-box').classList.add('hidden');
-                document.getElementById('game-box').classList.remove('hidden');
-            } else {
-                alert(res.message);
-            }
-        });
+        select.innerHTML = '<option value="">선택하세요</option>' + validTargets.map(p => `<option value="${p.id}">${p.nickname}</option>`).join('');
+      } else {
+        document.getElementById('waiting-msg').innerText = '밤이 되었습니다. 시민은 조용히 대기하세요.';
+      }
+    });
 
-        socket.on('roleAssigned', (data) => {
-            document.getElementById('my-role').innerText = data.role;
-        });
+    function useAbility() {
+      const targetId = document.getElementById('action-target').value;
+      if (!targetId) return alert('대상을 선택해주세요.');
 
-        socket.on('roomUpdate', (state) => {
-            document.getElementById('phase-text').innerText = state.phase === 'day' ? '낮' : (state.phase === 'night' ? '밤' : '대기 중');
-            document.getElementById('day-text').innerText = state.dayCount;
+      if (myRole === 'mafia') {
+        socket.emit('mafia_vote', { targetId, confirmed: true });
+      } else if (myRole === 'doctor') {
+        socket.emit('doctor_action', { targetId, confirmed: true });
+      } else if (myRole === 'police') {
+        socket.emit('police_investigate', { targetId });
+      } else if (myRole === 'medium') {
+        socket.emit('medium_investigate', { targetId });
+      }
 
-            const listEl = document.getElementById('player-list');
-            listEl.innerHTML = Object.values(state.players).map(p => `
-                <li class="p-2 flex justify-between items-center ${p.isAlive ? '' : 'bg-red-50 text-red-400 line-through'}">
-                    <span>${p.nickname} ${p.nickname === myName ? '(나)' : ''}</span>
-                    <span class="text-xs">${p.isAlive ? '생존' : '사망'}</span>
-                </li>
-            `).join('');
-        });
+      document.getElementById('action-panel').classList.add('hidden');
+      document.getElementById('waiting-msg').classList.remove('hidden');
+      document.getElementById('waiting-msg').innerText = '능력 사용이 확정되었습니다. 밤이 끝날 때까지 대기하세요.';
+    }
 
-        socket.on('systemLog', (msg) => {
-            const logBox = document.getElementById('log-box');
-            logBox.innerText += msg + '\n';
-            logBox.scrollTop = logBox.scrollHeight;
-        });
-    </script>
+    socket.on('police_result', ({ targetName, isMafia }) => {
+      const resEl = document.getElementById('ability-result');
+      resEl.innerText = `[조사 결과] ${targetName}님은 ${isMafia ? '마피아입니다! 🔴' : '마피아가 아닙니다. ⚪'}`;
+      resEl.classList.remove('hidden');
+    });
+
+    socket.on('medium_result', ({ targetName, role }) => {
+      const resEl = document.getElementById('ability-result');
+      resEl.innerText = `[영매 결과] 사망한 ${targetName}님의 직업은 ${role}이었습니다.`;
+      resEl.classList.remove('hidden');
+    });
+
+    socket.on('phase_change', ({ phase, msg }) => {
+      if (phase === 'DAY') {
+        document.getElementById('action-panel').classList.add('hidden');
+        document.getElementById('waiting-msg').classList.remove('hidden');
+        document.getElementById('waiting-msg').innerText = msg || '낮이 되었습니다.';
+      }
+    });
+
+    socket.on('player_died', () => {
+      isAlive = false;
+      document.getElementById('role-title').innerText += ' (사망)';
+      document.getElementById('action-panel').classList.add('hidden');
+      document.getElementById('waiting-msg').classList.remove('hidden');
+      document.getElementById('waiting-msg').innerText = '당신은 사망했습니다. 관전 모드로 전환됩니다.';
+    });
+
+    socket.on('roles_reset', () => {
+      location.reload();
+    });
+  </script>
 </body>
 </html>
