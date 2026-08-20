@@ -70,7 +70,6 @@ function getRandomDelay() {
   return Math.floor(Math.random() * 5000) + 5000;
 }
 
-// 방 완전 초기화 함수
 function createNewRoom() {
   players = [];
   inviteCode = generateInviteCode();
@@ -80,10 +79,11 @@ function createNewRoom() {
   resetNightActions();
 }
 
+// 승패 판정에서 isConnected 조건 제거 (생존 여부 isAlive 로만 판단)
 function checkWinCondition() {
   if (!isAssigned) return null;
 
-  const alivePlayers = players.filter(p => p.role && p.isAlive && p.isConnected);
+  const alivePlayers = players.filter(p => p.role && p.isAlive);
   const totalAssignedMafias = players.filter(p => p.role === 'mafia').length;
 
   if (totalAssignedMafias === 0) return null;
@@ -101,7 +101,7 @@ function checkWinCondition() {
 }
 
 function broadcastNightStatus() {
-  const alivePlayers = players.filter(p => p.isAlive && p.isConnected);
+  const alivePlayers = players.filter(p => p.isAlive);
   const mafias = alivePlayers.filter(p => p.role === 'mafia');
   
   const allMafiaConfirmed = mafias.length === 0 || (
@@ -117,15 +117,13 @@ function broadcastNightStatus() {
 }
 
 io.on('connection', (socket) => {
-  // 호스트 등록 및 새로고침 시 새 방 개설
   socket.on('register_host', () => {
     hostSocketId = socket.id;
-    createNewRoom(); // 호스트가 접속/새로고침하면 완전 새 방으로 개설
-    io.emit('roles_reset'); // 기존 연결된 참가자들 초기화
+    createNewRoom();
+    io.emit('roles_reset');
     socket.emit('init_state', { players, inviteCode, isAssigned, currentPhase });
   });
 
-  // 호스트가 수동으로 새 방을 만드는 경우
   socket.on('create_new_room', () => {
     createNewRoom();
     io.emit('roles_reset');
@@ -227,7 +225,7 @@ io.on('connection', (socket) => {
     currentPhase = 'NIGHT';
     resetNightActions();
 
-    const alivePlayers = players.filter(p => p.isAlive && p.isConnected);
+    const alivePlayers = players.filter(p => p.isAlive);
     const deadCount = players.filter(p => !p.isAlive).length;
 
     const doc = alivePlayers.find(p => p.role === 'doctor');
@@ -239,7 +237,7 @@ io.on('connection', (socket) => {
     
     broadcastNightStatus();
 
-    if (!doc) {
+    if (!doc || !doc.isConnected) {
       const timer = setTimeout(() => {
         nightActions.doctorConfirmed = true;
         broadcastNightStatus();
@@ -247,7 +245,7 @@ io.on('connection', (socket) => {
       fakeTimers.push(timer);
     }
 
-    if (!pol) {
+    if (!pol || !pol.isConnected) {
       const timer = setTimeout(() => {
         nightActions.policeConfirmed = true;
         broadcastNightStatus();
@@ -255,7 +253,7 @@ io.on('connection', (socket) => {
       fakeTimers.push(timer);
     }
 
-    if (!med || deadCount === 0) {
+    if (!med || !med.isConnected || deadCount === 0) {
       const timer = setTimeout(() => {
         nightActions.mediumConfirmed = true;
         broadcastNightStatus();
@@ -265,7 +263,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('mafia_vote', ({ targetId, confirmed }) => {
-    const mafias = players.filter(p => p.isAlive && p.isConnected && p.role === 'mafia');
+    const mafias = players.filter(p => p.isAlive && p.role === 'mafia');
 
     nightActions.mafiaVotes[socket.id] = { 
       targetId, 
@@ -284,7 +282,9 @@ io.on('connection', (socket) => {
     });
 
     mafias.forEach(m => {
-      io.to(m.id).emit('mafia_vote_update', { statusData });
+      if (m.isConnected) {
+        io.to(m.id).emit('mafia_vote_update', { statusData });
+      }
     });
 
     broadcastNightStatus();
@@ -323,7 +323,7 @@ io.on('connection', (socket) => {
     currentPhase = 'DAY';
     hasExecutedToday = false;
 
-    const mafias = players.filter(p => p.isAlive && p.isConnected && p.role === 'mafia');
+    const mafias = players.filter(p => p.isAlive && p.role === 'mafia');
     
     let mafiaTargetId = null;
     if (mafias.length > 0) {
@@ -421,18 +421,11 @@ io.on('connection', (socket) => {
     const pIdx = players.findIndex(item => item.id === socket.id);
     if (pIdx !== -1) {
       if (!isAssigned) {
-        // 게임 시작 전 연결 해제 시 아예 목록에서 제거
         players.splice(pIdx, 1);
       } else {
-        // 게임 중 연결 해제 시 오프라인 처리
         players[pIdx].isConnected = false;
       }
       io.emit('update_players', { players, isAssigned });
-
-      const winner = checkWinCondition();
-      if (winner) {
-        io.emit('game_over', { winner });
-      }
     }
   });
 });
