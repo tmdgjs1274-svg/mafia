@@ -45,7 +45,7 @@
     <!-- 마피아 전용 실시간 조율 보드 -->
     <div id="mafia-live-panel" class="hidden bg-red-950/30 border border-red-900/50 p-3 rounded-xl space-y-2 text-left">
       <div class="text-[11px] font-bold text-red-400">🎯 마피아 실시간 지목 상황</div>
-      <div id="mafia-live-list" class="space-y-1 text-xs"></div>
+      <div id="mafia-live-list" class="space-y-1.5 text-xs"></div>
     </div>
 
     <!-- 능력 사용 영역 -->
@@ -64,8 +64,9 @@
     const socket = io();
     let myRole = null;
     let myNickname = '';
+    let mySocketId = '';
     let isAlive = true;
-    let latestMafiaStatus = {}; // 마피아 동료 지목 현황 저장용
+    let latestMafiaStatus = {};
 
     const urlParams = new URLSearchParams(window.location.search);
     const codeParam = urlParams.get('code');
@@ -95,6 +96,7 @@
     socket.on('join_error', (msg) => { showError(msg); });
 
     socket.on('join_success', () => {
+      mySocketId = socket.id;
       document.getElementById('join-card').classList.add('hidden');
       document.getElementById('game-card').classList.remove('hidden');
       document.getElementById('player-nickname-display').innerText = myNickname;
@@ -108,6 +110,7 @@
     });
 
     socket.on('rejoin_success', ({ role, isAlive: aliveStatus, currentPhase, mafiaPartners }) => {
+      mySocketId = socket.id;
       myRole = role;
       isAlive = aliveStatus;
 
@@ -136,6 +139,7 @@
     });
 
     socket.on('your_role', ({ role, isAlive: aliveStatus, mafiaPartners }) => {
+      mySocketId = socket.id;
       myRole = role;
       isAlive = aliveStatus;
 
@@ -172,6 +176,9 @@
         let validTargets = [];
         if (myRole === 'medium') {
           validTargets = players.filter(p => !p.isAlive);
+        } else if (myRole === 'police') {
+          // 경찰 본인 제외 처리
+          validTargets = players.filter(p => p.isAlive && p.id !== mySocketId);
         } else {
           validTargets = players.filter(p => p.isAlive);
         }
@@ -195,6 +202,7 @@
       }
     }
 
+    // 마피아 지목 대상 뱃지화 레이아웃 적용
     socket.on('mafia_vote_update', ({ statusData }) => {
       if (myRole !== 'mafia') return;
 
@@ -207,8 +215,24 @@
 
       for (const name in statusData) {
         const data = statusData[name];
-        const statusText = data.confirmed ? '<span class="text-emerald-400 font-bold">[확정]</span>' : '<span class="text-amber-400 font-bold">[지목중]</span>';
-        html += `<div class="flex justify-between"><span>${name}: ${data.targetName}</span> <span>${statusText}</span></div>`;
+        const statusBadge = data.confirmed 
+          ? '<span class="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 rounded text-[10px] font-bold">[확정]</span>' 
+          : '<span class="px-1.5 py-0.5 bg-amber-500/20 text-amber-400 border border-amber-500/40 rounded text-[10px] font-bold">[지목중]</span>';
+        
+        const targetBadge = data.targetName !== '선택 중...'
+          ? `<span class="px-2 py-0.5 bg-red-900/60 text-red-200 border border-red-700/60 rounded-md font-bold text-xs">👉 ${data.targetName}</span>`
+          : `<span class="text-zinc-500 italic">선택 중...</span>`;
+
+        html += `
+          <div class="flex items-center justify-between bg-zinc-950/70 p-2 rounded-lg border border-red-950">
+            <div class="flex items-center gap-2">
+              <span class="font-bold text-zinc-200">${name}</span>
+              <span class="text-zinc-600">➡️</span>
+              ${targetBadge}
+            </div>
+            <div>${statusBadge}</div>
+          </div>
+        `;
         
         if (data.targetId) targets.push(data.targetId);
       }
@@ -224,7 +248,6 @@
       }
     });
 
-    // [수정] 마피아 팀 지목 일치 검사 후 최종 확정 차단
     function useAbility() {
       const targetId = document.getElementById('action-target').value;
       if (!targetId) return alert('대상을 선택해주세요.');
