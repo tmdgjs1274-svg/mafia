@@ -7,7 +7,12 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="/socket.io/socket.io.js"></script>
 </head>
-<body class="bg-zinc-950 text-white min-h-screen p-4 flex items-center justify-center">
+<body class="bg-zinc-950 text-white min-h-screen p-4 flex items-center justify-center relative">
+
+  <!-- 우상단 전체화면 버튼 -->
+  <button onclick="toggleFullScreen()" class="absolute top-4 right-4 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold rounded-lg text-xs flex items-center gap-1 shadow-lg transition z-10">
+    🖥️ 전체화면
+  </button>
 
   <div class="w-full max-w-4xl bg-zinc-900 border border-zinc-800 rounded-2xl p-6 shadow-2xl grid grid-cols-1 md:grid-cols-12 gap-6">
     
@@ -107,7 +112,7 @@
           <div class="text-xs font-bold text-indigo-300">🌙 밤 능력 실시간 완료 현황</div>
           <div class="grid grid-cols-2 gap-2 text-xs">
             <div id="st-mafia" class="p-2 bg-zinc-950 rounded border border-zinc-800 flex justify-between">
-              <span>🔴 마피아 (만장일치)</span> <span id="st-mafia-val">⏳ 대기중</span>
+              <span>🔴 마피아</span> <span id="st-mafia-val">⏳ 대기중</span>
             </div>
             <div id="st-doctor" class="p-2 bg-zinc-950 rounded border border-zinc-800 flex justify-between">
               <span>🟢 의사</span> <span id="st-doctor-val">⏳ 대기중</span>
@@ -158,6 +163,7 @@
     const socket = io();
     let playersData = [];
     let roles = { mafia: 2, police: 1, doctor: 1, medium: 1, citizen: 3 };
+    let currentNightStatus = {}; // 밤 확정 상태 저장
 
     socket.on('init_state', ({ inviteCode }) => {
       document.getElementById('invite-code').innerText = inviteCode;
@@ -185,6 +191,7 @@
     });
 
     socket.on('night_status_update', (st) => {
+      currentNightStatus = st;
       document.getElementById('st-mafia-val').innerText = !st.hasMafia ? '없음' : (st.mafiaConfirmed ? '✅ 완료' : '⏳ 진행중');
       document.getElementById('st-doctor-val').innerText = !st.hasDoctor ? '없음' : (st.doctorConfirmed ? '✅ 완료' : '⏳ 진행중');
       document.getElementById('st-police-val').innerText = !st.hasPolice ? '없음' : (st.policeConfirmed ? '✅ 완료' : '⏳ 진행중');
@@ -257,7 +264,23 @@
     }
 
     function goNight() { socket.emit('start_night'); }
-    function goDay() { socket.emit('resolve_night'); }
+
+    // 밤 결과 진행 시 미확정자 체크
+    function goDay() { 
+      const st = currentNightStatus;
+      const isAllConfirmed = 
+        (!st.hasMafia || st.mafiaConfirmed) &&
+        (!st.hasDoctor || st.doctorConfirmed) &&
+        (!st.hasPolice || st.policeConfirmed) &&
+        (!st.hasMedium || st.mediumConfirmed);
+
+      if (!isAllConfirmed) {
+        if (!confirm('아직 능력을 확정하지 않은 직업이 있습니다. 정말 진행하시겠습니까?')) {
+          return;
+        }
+      }
+      socket.emit('resolve_night'); 
+    }
 
     function executePlayer() {
       const targetId = document.getElementById('vote-target').value;
@@ -291,6 +314,19 @@
 
     function openQrModal() { document.getElementById('qr-modal').classList.remove('hidden'); }
     function closeQrModal() { document.getElementById('qr-modal').classList.add('hidden'); }
+
+    // 전체 화면 전환 함수
+    function toggleFullScreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(err => {
+          alert(`전체화면 모드를 켤 수 없습니다: ${err.message}`);
+        });
+      } else {
+        if (document.exitFullscreen) {
+          document.exitFullscreen();
+        }
+      }
+    }
   </script>
 </body>
 </html>
