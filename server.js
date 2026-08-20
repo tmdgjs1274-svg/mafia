@@ -18,10 +18,9 @@ let inviteCode = Math.random().toString(36).substring(2, 6).toUpperCase();
 let isAssigned = false;
 let currentPhase = 'WAITING';
 
-// 밤 진행 상태 추적 (확정 여부 포함)
 let nightActions = {
-  mafiaVotes: {},     // { socketId: { targetId, confirmed } }
-  doctorTarget: null, // targetId
+  mafiaVotes: {},
+  doctorTarget: null,
   doctorConfirmed: false,
   policeTarget: null,
   policeConfirmed: false,
@@ -45,7 +44,6 @@ function resetNightActions() {
   };
 }
 
-// 호스트에게 실시간 확정 현황 전송
 function broadcastNightStatus() {
   const alivePlayers = players.filter(p => p.isAlive);
   
@@ -89,7 +87,6 @@ io.on('connection', (socket) => {
     io.emit('update_players', { players, isAssigned });
   });
 
-  // 역할 분배
   socket.on('assign_roles', (roleConfig) => {
     let rolePool = [];
     Object.keys(roleConfig).forEach(role => {
@@ -120,25 +117,37 @@ io.on('connection', (socket) => {
     io.emit('phase_change', { phase: 'DAY', msg: '게임이 시작되었습니다! 낮 토론을 진행해주세요.' });
   });
 
-  // 밤 시작
   socket.on('start_night', () => {
     currentPhase = 'NIGHT';
     resetNightActions();
     
-    // 사망자 없으면 영매 자동 확정
     const deadCount = players.filter(p => !p.isAlive).length;
     if (deadCount === 0) nightActions.mediumConfirmed = true;
 
-    io.emit('phase_change', { phase: 'NIGHT', msg: '밤이 되었습니다. 각 참가자는 스마트폰에서 능력을 실행하세요.' });
+    io.emit('phase_change', { phase: 'NIGHT', msg: '밤이 되었습니다. 각 참가자는 능력을 사용하세요.' });
     io.emit('night_started', { players });
     broadcastNightStatus();
   });
 
-  // [마피아] 지목 및 확정 처리
+  // [마피아] 지목 및 확정 처리 (만장일치 검증 로직 포함)
   socket.on('mafia_vote', ({ targetId, confirmed }) => {
+    const mafias = players.filter(p => p.isAlive && p.role === 'mafia');
+
+    if (confirmed) {
+      // 확정하려는 순간 만장일치 여부 체크
+      const currentVotes = { ...nightActions.mafiaVotes, [socket.id]: { targetId, confirmed: true } };
+      const targets = mafias.map(m => currentVotes[m.id]?.targetId).filter(Boolean);
+
+      const isAllSelected = targets.length === mafias.length;
+      const isUnanimous = isAllSelected && targets.every(t => t === targetId);
+
+      if (!isUnanimous) {
+        return socket.emit('mafia_vote_error', '모든 마피아가 동일한 대상을 지목해야 확정할 수 있습니다.');
+      }
+    }
+
     nightActions.mafiaVotes[socket.id] = { targetId, confirmed };
 
-    const mafias = players.filter(p => p.isAlive && p.role === 'mafia');
     const statusData = {};
     mafias.forEach(m => {
       const vote = nightActions.mafiaVotes[m.id];
@@ -156,14 +165,12 @@ io.on('connection', (socket) => {
     broadcastNightStatus();
   });
 
-  // [의사] 선택 및 확정/취소
   socket.on('doctor_action', ({ targetId, confirmed }) => {
     nightActions.doctorTarget = targetId;
     nightActions.doctorConfirmed = confirmed;
     broadcastNightStatus();
   });
 
-  // [경찰] 조사 및 확정
   socket.on('police_investigate', ({ targetId }) => {
     const target = players.find(p => p.id === targetId);
     if (target) {
@@ -175,7 +182,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // [영매] 조사 및 확정
   socket.on('medium_investigate', ({ targetId }) => {
     const target = players.find(p => p.id === targetId);
     if (target) {
@@ -186,14 +192,12 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 밤 결과 종합 및 낮 진행 (룰 보완: 의사 보호 시 반드시 살아남음)
   socket.on('resolve_night', () => {
     currentPhase = 'DAY';
 
     const mafias = players.filter(p => p.isAlive && p.role === 'mafia');
     const votes = Object.values(nightActions.mafiaVotes);
     
-    // 마피아 만장일치 검증
     let mafiaTargetId = null;
     if (mafias.length > 0 && votes.length === mafias.length) {
       const allConfirmed = votes.every(v => v.confirmed);
@@ -207,10 +211,8 @@ io.on('connection', (socket) => {
 
     let resultMsg = "";
 
-    // 의사가 치료한 대상과 마피아 타겟 비교
     if (mafiaTargetId) {
       if (String(mafiaTargetId) === String(nightActions.doctorTarget)) {
-        // 의사 치료 성공 ➔ 무조건 생존
         resultMsg = "의사의 신속한 치료 덕분에 간밤에 아무도 죽지 않았습니다!";
       } else {
         const victim = players.find(p => p.id === mafiaTargetId);
@@ -228,7 +230,6 @@ io.on('connection', (socket) => {
     io.emit('phase_change', { phase: 'DAY', resultMsg });
   });
 
-  // 처형 처리
   socket.on('kill_player', (playerId) => {
     const p = players.find(item => item.id === playerId);
     if (p) {
@@ -238,7 +239,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 게임 전체 리셋
   socket.on('reset_roles', () => {
     players.forEach(p => { p.role = null; p.isAlive = true; });
     isAssigned = false;
