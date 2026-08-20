@@ -2,133 +2,138 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>마피아 게임 - 플레이어</title>
+    <title>마피아 게임 - 참가자</title>
     <style>
         body {
             font-family: Arial, sans-serif;
-            background-color: #f4f4f9;
+            background-color: #f0f2f5;
             margin: 0;
-            padding: 15px;
+            padding: 20px;
         }
         .container {
             max-width: 500px;
             margin: 0 auto;
             background: #fff;
-            padding: 15px;
-            border: 1px solid #ccc;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
         }
-        .role-card {
-            background: #f8f9fa;
-            border: 2px dashed #6c757d;
+        h1, h2 {
+            border-bottom: 2px solid #333;
+            padding-bottom: 5px;
+        }
+        .status-box {
+            background: #e9ecef;
             padding: 15px;
+            margin-bottom: 20px;
             text-align: center;
-            margin-bottom: 15px;
         }
-        .role-title {
+        .status-box .phase {
             font-size: 20px;
             font-weight: bold;
-            color: #d9534f;
+            color: #007bff;
         }
-        .chat-box {
-            border: 1px solid #ccc;
-            height: 200px;
-            overflow-y: scroll;
+        .role-box {
+            background: #f8f9fa;
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .my-role {
+            font-size: 18px;
+            font-weight: bold;
+            color: #dc3545;
+        }
+        .player-list {
+            list-style: none;
+            padding: 0;
+        }
+        .player-item {
             padding: 10px;
-            background: #fafafa;
-            margin-bottom: 10px;
-        }
-        .chat-input-group {
+            border-bottom: 1px solid #ddd;
             display: flex;
+            justify-content: space-between;
         }
-        .chat-input-group input {
-            flex: 1;
-            padding: 8px;
-            border: 1px solid #ccc;
+        .player-item.dead {
+            background-color: #ffe6e6;
+            color: #888;
+            text-decoration: line-through;
         }
-        .chat-input-group button {
-            padding: 8px 15px;
-            background: #28a745;
-            color: white;
-            border: none;
-            cursor: pointer;
-        }
-        .action-area {
+        .logs {
+            background: #333;
+            color: #fff;
+            padding: 10px;
+            height: 120px;
+            overflow-y: scroll;
+            font-family: monospace;
             margin-top: 15px;
-            padding: 10px;
-            background: #e9ecef;
-        }
-        select {
-            width: 100%;
-            padding: 8px;
-            margin-top: 5px;
-            margin-bottom: 5px;
-        }
-        .btn-vote {
-            width: 100%;
-            padding: 10px;
-            background: #007bff;
-            color: white;
-            border: none;
-            cursor: pointer;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h2>마피아 게임</h2>
+        <h1>마피아 게임</h1>
 
-        <!-- 당신의 역할 -->
-        <div class="role-card">
-            당신의 역할: <span class="role-title" id="my-role">마피아</span>
+        <div class="status-box">
+            현재 상태: <span class="phase" id="game-phase">대기 중</span>
         </div>
 
-        <!-- 게임 상태 -->
-        <div style="margin-bottom: 10px; font-weight: bold;">
-            현재 단계: <span id="current-phase">낮 (투표 시간)</span>
+        <div class="role-box">
+            내 직업: <span class="my-role" id="my-role">게임 시작 전</span>
         </div>
 
-        <!-- 채팅창 -->
-        <div class="chat-box" id="chat">
-            <div><b>[알림]:</b> 게임이 시작되었습니다.</div>
-            <div><b>플레이어1:</b> 누가 마피아인가요?</div>
-            <div><b>플레이어2:</b> 저는 시민입니다!</div>
-        </div>
-        <div class="chat-input-group">
-            <input type="text" id="msg-input" placeholder="메시지를 입력하세요...">
-            <button onclick="sendMessage()">전송</button>
-        </div>
+        <h2>참여자 현황</h2>
+        <ul class="player-list" id="players">
+            <li class="player-item" id="player-1">
+                <span>플레이어 1</span>
+                <span class="status">생존</span>
+            </li>
+            <li class="player-item" id="player-2">
+                <span>플레이어 2</span>
+                <span class="status">생존</span>
+            </li>
+        </ul>
 
-        <!-- 액션/투표 영역 -->
-        <div class="action-area">
-            <label for="target-select"><b>대상 선택 (투표 / 능력 사용):</b></label>
-            <select id="target-select">
-                <option value="">-- 대상 선택 --</option>
-                <option value="플레이어1">플레이어 1</option>
-                <option value="플레이어2">플레이어 2</option>
-                <option value="플레이어3">플레이어 3</option>
-            </select>
-            <button class="btn-vote" onclick="submitAction()">선택 완료</button>
+        <h2>게임 기록</h2>
+        <div class="logs" id="log-box">
+            [시스템] 방에 입장했습니다.<br>
         </div>
     </div>
 
+    <script src="/socket.io/socket.io.js"></script>
     <script>
-        function sendMessage() {
-            const input = document.getElementById('msg-input');
-            if (input.value.trim() !== '') {
-                const chat = document.getElementById('chat');
-                chat.innerHTML += `<div><b>나:</b> ${input.value}</div>`;
-                chat.scrollTop = chat.scrollHeight;
-                input.value = '';
-            }
-        }
+        const socket = io();
 
-        function submitAction() {
-            const select = document.getElementById('target-select');
-            if (select.value) {
-                alert(`[${select.value}] 님을 선택했습니다.`);
-            } else {
-                alert('대상을 선택해 주세요.');
+        // 게임 단계 변경 수신 (낮/밤)
+        socket.on('phaseChange', (data) => {
+            document.getElementById('game-phase').innerText = data.phase;
+            appendLog(`[알림] ${data.phase}(이)가 되었습니다.`);
+        });
+
+        // 역할 부여 수신
+        socket.on('assignRole', (data) => {
+            document.getElementById('my-role').innerText = data.role;
+            appendLog(`[시스템] 당신의 직업은 [${data.role}] 입니다.`);
+        });
+
+        // 플레이어 사망/처형 처리
+        socket.on('playerDied', (data) => {
+            const playerEl = document.getElementById(data.playerId);
+            if (playerEl) {
+                playerEl.classList.add('dead');
+                playerEl.querySelector('.status').innerText = '사망';
             }
+        });
+
+        // 공통 로그 처리
+        socket.on('log', (msg) => {
+            appendLog(msg);
+        });
+
+        function appendLog(msg) {
+            const logBox = document.getElementById('log-box');
+            logBox.innerHTML += `${msg}<br>`;
+            logBox.scrollTop = logBox.scrollHeight;
         }
     </script>
 </body>
