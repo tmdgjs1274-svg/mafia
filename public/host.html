@@ -248,32 +248,31 @@
       renderPlayerList();
     }
 
+    // 생존/사망 표기는 유지하고 [나감] 상태는 별도 뱃지로 표시
     function renderPlayerList() {
       document.getElementById('player-list').innerHTML = playersData.map(p => {
         let nameColor = 'text-white';
-        let statusText = '생존';
-        let statusColor = 'text-emerald-400';
+        let statusText = p.isAlive ? '생존' : '사망';
+        let statusColor = p.isAlive ? 'text-emerald-400' : 'text-red-500';
 
-        if (!p.isConnected) {
+        if (!p.isAlive) {
           nameColor = 'text-zinc-500 line-through';
-          statusText = '나감';
-          statusColor = 'text-zinc-500';
-        } else if (!p.isAlive) {
-          nameColor = 'text-zinc-500 line-through';
-          statusText = '사망';
-          statusColor = 'text-red-500';
         }
+
+        const offlineBadge = !p.isConnected 
+          ? `<span class="text-[10px] bg-zinc-800 text-zinc-400 px-1.5 py-0.5 rounded border border-zinc-700 ml-1 font-normal">나감</span>` 
+          : '';
 
         const roleBadge = (showRoles && p.role) ? `<span class="text-[10px] text-zinc-400 ml-1">(${roleNameMap[p.role] || p.role})</span>` : '';
 
         return `
           <div class="flex justify-between items-center p-2 bg-zinc-950 rounded-lg border border-zinc-800">
-            <span class="font-medium ${nameColor}">
-              ${p.nickname}${roleBadge}
-            </span>
-            <span class="text-[10px] font-semibold ${statusColor}">
-              ${statusText}
-            </span>
+            <div class="flex items-center">
+              <span class="font-medium ${nameColor}">${p.nickname}</span>
+              ${roleBadge}
+              ${offlineBadge}
+            </div>
+            <span class="text-[10px] font-semibold ${statusColor}">${statusText}</span>
           </div>
         `;
       }).join('');
@@ -341,7 +340,7 @@
     function updateVoteDropdown() {
       const select = document.getElementById('vote-target');
       if (!select) return;
-      const alive = playersData.filter(p => p.isAlive && p.isConnected);
+      const alive = playersData.filter(p => p.isAlive);
       select.innerHTML = '<option value="">처형 대상 선택</option>' + alive.map(p => `<option value="${p.id}">${p.nickname}</option>`).join('');
     }
 
