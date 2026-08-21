@@ -222,6 +222,8 @@ io.on('connection', (socket) => {
 
   socket.on('start_night', () => {
     currentPhase = 'NIGHT';
+    
+    // 밤 시작 시 마피아 행동 및 투표 상태 전체 초기화
     resetNightActions();
 
     const alivePlayers = players.filter(p => p.isAlive);
@@ -263,24 +265,24 @@ io.on('connection', (socket) => {
 
   socket.on('mafia_vote', ({ targetId, confirmed, reaction }) => {
     const mafias = players.filter(p => p.isAlive && p.role === 'mafia');
-
     const prevVote = nightActions.mafiaVotes[socket.id];
-    let currentReaction = reaction;
 
+    let currentReaction = reaction !== undefined ? reaction : (prevVote ? prevVote.reaction : null);
+
+    // 지목 대상이 변경되면 이전 리액션 초기화
     if (prevVote && prevVote.targetId !== targetId && reaction === undefined) {
       currentReaction = null;
-    } else if (prevVote && prevVote.targetId === targetId && reaction === undefined) {
-      currentReaction = prevVote.reaction;
     }
-
-    // confirmed 값이 전달되었으면 적용하고, 안 왔다면 기존 확정 상태를 유지
-    const isConfirmed = confirmed !== undefined ? !!confirmed : (prevVote ? prevVote.confirmed : false);
 
     nightActions.mafiaVotes[socket.id] = { 
       targetId, 
-      confirmed: isConfirmed,
+      confirmed: !!confirmed,
       reaction: currentReaction
     };
+
+    // 생존한 모든 마피아의 지목 상태 확인 (지목 대상이 전원 일치하는지)
+    const validVotes = mafias.map(m => nightActions.mafiaVotes[m.id]?.targetId).filter(Boolean);
+    const isUnanimous = validVotes.length === mafias.length && validVotes.every(v => v === validVotes[0]);
 
     const statusData = {};
     mafias.forEach(m => {
@@ -294,9 +296,10 @@ io.on('connection', (socket) => {
       };
     });
 
+    // 모든 생존 마피아에게 투표 정보 및 '일치 여부(isUnanimous)' 전달
     mafias.forEach(m => {
       if (m.isConnected) {
-        io.to(m.id).emit('mafia_vote_update', { statusData });
+        io.to(m.id).emit('mafia_vote_update', { statusData, isUnanimous });
       }
     });
 
