@@ -133,6 +133,7 @@
     let isAlive = true;
     let allPlayers = [];
     let currentMafiaReaction = null;
+    let isMafiaConfirmed = false;
 
     const roleDetails = {
       mafia: { title: '🔴 마피아', desc: '밤마다 은밀히 시민을 처형합니다.' },
@@ -284,6 +285,8 @@
         aliveList.map(p => `<option value="${p.id}">${p.nickname}</option>`).join('');
 
       currentMafiaReaction = null;
+      isMafiaConfirmed = false;
+
       document.getElementById('react-like').disabled = true;
       document.getElementById('react-letgo').disabled = true;
       document.getElementById('react-nope').disabled = true;
@@ -298,7 +301,11 @@
       document.getElementById('react-like').disabled = !hasTarget;
       document.getElementById('react-letgo').disabled = !hasTarget;
       document.getElementById('react-nope').disabled = !hasTarget;
+      
+      // 대상을 변경하면 확정 상태 해제
+      isMafiaConfirmed = false;
       document.getElementById('mafia-confirm-btn').disabled = !hasTarget;
+      document.getElementById('mafia-confirm-btn').innerText = "투표 확정";
 
       currentMafiaReaction = null;
 
@@ -312,13 +319,15 @@
       if (!targetId) return;
 
       currentMafiaReaction = type;
-      socket.emit('mafia_vote', { targetId, confirmed: false, reaction: type });
+      // 감정표현 클릭 시 기존 확정 상태(isMafiaConfirmed)를 유지하여 서버로 전달
+      socket.emit('mafia_vote', { targetId, confirmed: isMafiaConfirmed, reaction: type });
     }
 
     function confirmMafiaVote() {
       const targetId = document.getElementById('mafia-target-select').value;
       if (!targetId) return;
 
+      isMafiaConfirmed = true;
       socket.emit('mafia_vote', { targetId, confirmed: true, reaction: currentMafiaReaction });
       document.getElementById('mafia-confirm-btn').innerText = "확정 완료!";
       document.getElementById('mafia-confirm-btn').disabled = true;
@@ -332,16 +341,20 @@
         const info = statusData[nick];
         const statusBadge = info.confirmed 
           ? '<span class="text-emerald-400 font-bold">[확정]</span>' 
-          : '<span class="text-zinc-500">[선택중]</span>';
+          : '<span class="text-amber-500 font-bold">[선택중]</span>';
         
         const reactBadge = info.reaction ? reactionBadgeMap[info.reaction] || '' : '';
 
+        const targetBadge = info.targetId 
+          ? `<span class="px-1.5 py-0.5 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded text-[11px] font-bold">${info.targetName}</span>`
+          : `<span class="text-zinc-500 font-medium">${info.targetName}</span>`;
+
         return `
-          <div class="flex justify-between items-center">
+          <div class="flex justify-between items-center py-0.5">
             <span class="text-zinc-300 font-medium">${nick}</span>
             <div class="flex items-center gap-1.5">
               ${reactBadge}
-              <span class="text-zinc-400 font-bold">${info.targetName}</span>
+              ${targetBadge}
               ${statusBadge}
             </div>
           </div>
