@@ -232,7 +232,6 @@ io.on('connection', (socket) => {
     const pol = alivePlayers.find(p => p.role === 'police');
     const med = alivePlayers.find(p => p.role === 'medium');
 
-    // 사망자가 없거나 영매가 없으면/사망했으면 밤 시작 즉시 영매 완료 처리
     if (!med || !med.isConnected || deadCount === 0) {
       nightActions.mediumConfirmed = true;
     }
@@ -322,7 +321,7 @@ io.on('connection', (socket) => {
       nightActions.mediumTarget = targetId;
       nightActions.mediumConfirmed = true;
       const koreanRole = roleNameMap[target.role] || target.role;
-      socket.emit('medium_result', { targetName: target.nickname, role: koreanRole });
+      socket.emit('medium_result', { targetId: target.id, targetName: target.nickname, role: koreanRole });
       broadcastNightStatus();
     }
   });
