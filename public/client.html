@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>마피아 플레이어</title>
+  <title>마피아 모바일 클라이언트</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="/socket.io/socket.io.js"></script>
 </head>
@@ -134,7 +134,7 @@
     let allPlayers = [];
     let currentMafiaReaction = null;
     let isMafiaConfirmed = false;
-    let isMafiaUnanimous = false; // 마피아 지목 전원 일치 여부
+    let isMafiaUnanimous = false;
 
     const roleDetails = {
       mafia: { title: '🔴 마피아', desc: '밤마다 은밀히 시민을 처형합니다.' },
@@ -285,7 +285,6 @@
       select.innerHTML = '<option value="">대상을 선택하세요</option>' + 
         aliveList.map(p => `<option value="${p.id}">${p.nickname}</option>`).join('');
 
-      // [다음 밤 초기화 핵심] 마피아 상태 완전 초기화
       currentMafiaReaction = null;
       isMafiaConfirmed = false;
       isMafiaUnanimous = false;
@@ -312,7 +311,6 @@
       isMafiaConfirmed = false;
       currentMafiaReaction = null;
 
-      // 지목 대상 변경 시 서버로 전달
       socket.emit('mafia_vote', { targetId, confirmed: false, reaction: null });
     }
 
@@ -327,7 +325,6 @@
     function confirmMafiaVote() {
       const targetId = document.getElementById('mafia-target-select').value;
       
-      // 일치하지 않으면 확정 불가
       if (!targetId || !isMafiaUnanimous) return;
 
       isMafiaConfirmed = true;
@@ -344,7 +341,6 @@
 
       isMafiaUnanimous = isUnanimous;
 
-      // 파트너 상태 UI 업데이트
       container.innerHTML = Object.keys(statusData).map(nick => {
         const info = statusData[nick];
         const statusBadge = info.confirmed 
@@ -369,7 +365,6 @@
         `;
       }).join('');
 
-      // [핵심] 확정 버튼 제어: 이미 확정했으면 비활성화, 일치(isUnanimous)할 때만 활성화
       const confirmBtn = document.getElementById('mafia-confirm-btn');
       if (isMafiaConfirmed) {
         confirmBtn.disabled = true;
@@ -450,20 +445,25 @@
       panel.classList.remove('hidden');
 
       const select = document.getElementById('medium-target-select');
+      const confirmBtn = document.getElementById('medium-confirm-btn');
+      const resBox = document.getElementById('medium-result-msg');
       const deadList = allPlayers.filter(p => !p.isAlive);
 
       if (deadList.length === 0) {
-        select.innerHTML = '<option value="">사망한 플레이어가 없습니다</option>';
-        document.getElementById('medium-confirm-btn').disabled = true;
+        select.classList.add('hidden');
+        confirmBtn.classList.add('hidden');
+        resBox.classList.remove('hidden');
+        resBox.innerHTML = `<span class="text-zinc-400">사망한 플레이어가 없어 능력을 사용할 수 없습니다.</span>`;
       } else {
+        select.classList.remove('hidden');
+        confirmBtn.classList.remove('hidden');
+        resBox.classList.add('hidden');
+        
         select.innerHTML = '<option value="">사망자 선택</option>' + 
           deadList.map(p => `<option value="${p.id}">${p.nickname}</option>`).join('');
-        const btn = document.getElementById('medium-confirm-btn');
-        btn.disabled = false;
-        btn.innerText = "영혼 대화 실행";
+        confirmBtn.disabled = false;
+        confirmBtn.innerText = "영혼 대화 실행";
       }
-
-      document.getElementById('medium-result-msg').classList.add('hidden');
     }
 
     function confirmMediumAction() {
