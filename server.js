@@ -273,9 +273,12 @@ io.on('connection', (socket) => {
       currentReaction = prevVote.reaction;
     }
 
+    // confirmed 값이 전달되었으면 적용하고, 안 왔다면 기존 확정 상태를 유지
+    const isConfirmed = confirmed !== undefined ? !!confirmed : (prevVote ? prevVote.confirmed : false);
+
     nightActions.mafiaVotes[socket.id] = { 
       targetId, 
-      confirmed: !!confirmed,
+      confirmed: isConfirmed,
       reaction: currentReaction
     };
 
