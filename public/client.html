@@ -136,6 +136,10 @@
     let isMafiaConfirmed = false;
     let isMafiaUnanimous = false;
 
+    // 조사 결과를 기록하기 위한 개인 저장소 객체 (ID: 결과문구)
+    let policeHistory = {};
+    let mediumHistory = {};
+
     const roleDetails = {
       mafia: { title: '🔴 마피아', desc: '밤마다 은밀히 시민을 처형합니다.' },
       police: { title: '🔵 경찰', desc: '밤마다 대상의 마피아 여부를 조사합니다.' },
@@ -412,8 +416,12 @@
 
       const select = document.getElementById('police-target-select');
       const aliveList = allPlayers.filter(p => p.isAlive && p.id !== socket.id);
+
       select.innerHTML = '<option value="">조사할 대상 선택</option>' + 
-        aliveList.map(p => `<option value="${p.id}">${p.nickname}</option>`).join('');
+        aliveList.map(p => {
+          const historyTag = policeHistory[p.id] ? ` (${policeHistory[p.id]})` : '';
+          return `<option value="${p.id}">${p.nickname}${historyTag}</option>`;
+        }).join('');
 
       const btn = document.getElementById('police-confirm-btn');
       btn.disabled = false;
@@ -431,9 +439,13 @@
       btn.disabled = true;
     }
 
-    socket.on('police_result', ({ targetName, isMafia }) => {
+    socket.on('police_result', ({ targetId, targetName, isMafia }) => {
       const resBox = document.getElementById('police-result-msg');
       resBox.classList.remove('hidden');
+      
+      const tag = isMafia ? '조사완료: 마피아' : '조사완료: 시민';
+      policeHistory[targetId] = tag;
+
       resBox.innerHTML = isMafia 
         ? `<span class="text-red-500">[결과] ${targetName}님은 🔴 마피아입니다!</span>`
         : `<span class="text-emerald-400">[결과] ${targetName}님은 마피아가 아닙니다.</span>`;
@@ -460,7 +472,10 @@
         resBox.classList.add('hidden');
         
         select.innerHTML = '<option value="">사망자 선택</option>' + 
-          deadList.map(p => `<option value="${p.id}">${p.nickname}</option>`).join('');
+          deadList.map(p => {
+            const historyTag = mediumHistory[p.id] ? ` (${mediumHistory[p.id]})` : '';
+            return `<option value="${p.id}">${p.nickname}${historyTag}</option>`;
+          }).join('');
         confirmBtn.disabled = false;
         confirmBtn.innerText = "영혼 대화 실행";
       }
@@ -476,9 +491,12 @@
       btn.disabled = true;
     }
 
-    socket.on('medium_result', ({ targetName, role }) => {
+    socket.on('medium_result', ({ targetId, targetName, role }) => {
       const resBox = document.getElementById('medium-result-msg');
       resBox.classList.remove('hidden');
+
+      mediumHistory[targetId] = `성불완료: ${role}`;
+
       resBox.innerHTML = `<span class="text-purple-300">[결과] ${targetName}님의 직업은 <b>${role}</b>였습니다.</span>`;
     });
 
@@ -506,6 +524,8 @@
     socket.on('roles_reset', () => {
       myRole = null;
       isAlive = true;
+      policeHistory = {};
+      mediumHistory = {};
       document.getElementById('game-panel').classList.add('hidden');
       document.getElementById('waiting-panel').classList.remove('hidden');
       document.getElementById('waiting-msg').innerText = "게임이 초기화되었습니다. 호스트를 기다려주세요.";
