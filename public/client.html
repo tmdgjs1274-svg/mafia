@@ -134,6 +134,7 @@
     let allPlayers = [];
     let currentMafiaReaction = null;
     let isMafiaConfirmed = false;
+    let isMafiaUnanimous = false; // 마피아 지목 전원 일치 여부
 
     const roleDetails = {
       mafia: { title: '🔴 마피아', desc: '밤마다 은밀히 시민을 처형합니다.' },
@@ -284,14 +285,20 @@
       select.innerHTML = '<option value="">대상을 선택하세요</option>' + 
         aliveList.map(p => `<option value="${p.id}">${p.nickname}</option>`).join('');
 
+      // [다음 밤 초기화 핵심] 마피아 상태 완전 초기화
       currentMafiaReaction = null;
       isMafiaConfirmed = false;
+      isMafiaUnanimous = false;
 
       document.getElementById('react-like').disabled = true;
       document.getElementById('react-letgo').disabled = true;
       document.getElementById('react-nope').disabled = true;
-      document.getElementById('mafia-confirm-btn').disabled = true;
-      document.getElementById('mafia-confirm-btn').innerText = "투표 확정";
+      
+      const confirmBtn = document.getElementById('mafia-confirm-btn');
+      confirmBtn.disabled = true;
+      confirmBtn.innerText = "투표 확정";
+
+      document.getElementById('mafia-partners-status').innerHTML = '';
     }
 
     function onMafiaTargetChange() {
@@ -302,16 +309,11 @@
       document.getElementById('react-letgo').disabled = !hasTarget;
       document.getElementById('react-nope').disabled = !hasTarget;
       
-      // 대상을 변경하면 확정 상태 해제
       isMafiaConfirmed = false;
-      document.getElementById('mafia-confirm-btn').disabled = !hasTarget;
-      document.getElementById('mafia-confirm-btn').innerText = "투표 확정";
-
       currentMafiaReaction = null;
 
-      if (hasTarget) {
-        socket.emit('mafia_vote', { targetId, confirmed: false, reaction: null });
-      }
+      // 지목 대상 변경 시 서버로 전달
+      socket.emit('mafia_vote', { targetId, confirmed: false, reaction: null });
     }
 
     function sendMafiaReaction(type) {
@@ -319,24 +321,30 @@
       if (!targetId) return;
 
       currentMafiaReaction = type;
-      // 감정표현 클릭 시 기존 확정 상태(isMafiaConfirmed)를 유지하여 서버로 전달
       socket.emit('mafia_vote', { targetId, confirmed: isMafiaConfirmed, reaction: type });
     }
 
     function confirmMafiaVote() {
       const targetId = document.getElementById('mafia-target-select').value;
-      if (!targetId) return;
+      
+      // 일치하지 않으면 확정 불가
+      if (!targetId || !isMafiaUnanimous) return;
 
       isMafiaConfirmed = true;
       socket.emit('mafia_vote', { targetId, confirmed: true, reaction: currentMafiaReaction });
-      document.getElementById('mafia-confirm-btn').innerText = "확정 완료!";
-      document.getElementById('mafia-confirm-btn').disabled = true;
+      
+      const confirmBtn = document.getElementById('mafia-confirm-btn');
+      confirmBtn.innerText = "확정 완료!";
+      confirmBtn.disabled = true;
     }
 
-    socket.on('mafia_vote_update', ({ statusData }) => {
+    socket.on('mafia_vote_update', ({ statusData, isUnanimous }) => {
       const container = document.getElementById('mafia-partners-status');
       if (!container) return;
 
+      isMafiaUnanimous = isUnanimous;
+
+      // 파트너 상태 UI 업데이트
       container.innerHTML = Object.keys(statusData).map(nick => {
         const info = statusData[nick];
         const statusBadge = info.confirmed 
@@ -360,6 +368,21 @@
           </div>
         `;
       }).join('');
+
+      // [핵심] 확정 버튼 제어: 이미 확정했으면 비활성화, 일치(isUnanimous)할 때만 활성화
+      const confirmBtn = document.getElementById('mafia-confirm-btn');
+      if (isMafiaConfirmed) {
+        confirmBtn.disabled = true;
+        confirmBtn.innerText = "확정 완료!";
+      } else {
+        if (isMafiaUnanimous) {
+          confirmBtn.disabled = false;
+          confirmBtn.innerText = "투표 확정";
+        } else {
+          confirmBtn.disabled = true;
+          confirmBtn.innerText = "의견 불일치 (확정 불가)";
+        }
+      }
     });
 
     // --- 의사 로직 ---
