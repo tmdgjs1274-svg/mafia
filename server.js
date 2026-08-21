@@ -223,7 +223,6 @@ io.on('connection', (socket) => {
   socket.on('start_night', () => {
     currentPhase = 'NIGHT';
     
-    // 밤 시작 시 마피아 행동 및 투표 상태 전체 초기화
     resetNightActions();
 
     const alivePlayers = players.filter(p => p.isAlive);
@@ -232,6 +231,11 @@ io.on('connection', (socket) => {
     const doc = alivePlayers.find(p => p.role === 'doctor');
     const pol = alivePlayers.find(p => p.role === 'police');
     const med = alivePlayers.find(p => p.role === 'medium');
+
+    // 사망자가 없거나 영매가 없으면/사망했으면 밤 시작 즉시 영매 완료 처리
+    if (!med || !med.isConnected || deadCount === 0) {
+      nightActions.mediumConfirmed = true;
+    }
 
     io.emit('phase_change', { phase: 'NIGHT', msg: '밤이 되었습니다. 각 참가자는 능력을 사용하세요.' });
     io.emit('night_started', { players });
@@ -253,14 +257,6 @@ io.on('connection', (socket) => {
       }, getRandomDelay());
       fakeTimers.push(timer);
     }
-
-    if (!med || !med.isConnected || deadCount === 0) {
-      const timer = setTimeout(() => {
-        nightActions.mediumConfirmed = true;
-        broadcastNightStatus();
-      }, getRandomDelay());
-      fakeTimers.push(timer);
-    }
   });
 
   socket.on('mafia_vote', ({ targetId, confirmed, reaction }) => {
@@ -269,7 +265,6 @@ io.on('connection', (socket) => {
 
     let currentReaction = reaction !== undefined ? reaction : (prevVote ? prevVote.reaction : null);
 
-    // 지목 대상이 변경되면 이전 리액션 초기화
     if (prevVote && prevVote.targetId !== targetId && reaction === undefined) {
       currentReaction = null;
     }
@@ -280,7 +275,6 @@ io.on('connection', (socket) => {
       reaction: currentReaction
     };
 
-    // 생존한 모든 마피아의 지목 상태 확인 (지목 대상이 전원 일치하는지)
     const validVotes = mafias.map(m => nightActions.mafiaVotes[m.id]?.targetId).filter(Boolean);
     const isUnanimous = validVotes.length === mafias.length && validVotes.every(v => v === validVotes[0]);
 
@@ -296,7 +290,6 @@ io.on('connection', (socket) => {
       };
     });
 
-    // 모든 생존 마피아에게 투표 정보 및 '일치 여부(isUnanimous)' 전달
     mafias.forEach(m => {
       if (m.isConnected) {
         io.to(m.id).emit('mafia_vote_update', { statusData, isUnanimous });
